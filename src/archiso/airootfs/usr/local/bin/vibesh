@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""
+VibeOS Shell Launcher
+This file is copied to /usr/local/bin/vibesh in the ISO
+"""
+
+import sys
+import os
+
+# Add vibeos modules to path
+sys.path.insert(0, '/usr/lib/vibeos')
+
+# Import and run the shell
+from shell.vibesh import main
+
+if __name__ == "__main__":
+    main()

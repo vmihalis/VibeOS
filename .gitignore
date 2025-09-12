@@ -1,0 +1,24 @@
+# Build artifacts
+output/
+work/
+src/archiso/work/
+
+# ISO files
+*.iso
+*.img
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+*.cache
+
+# Docker volumes
+.docker/
