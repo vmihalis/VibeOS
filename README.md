@@ -15,8 +15,8 @@ An open source operating system that replaces traditional UI with natural langua
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/vibeos/vibeos.git
-   cd vibeos
+   git clone https://github.com/vmihalis/VibeOS.git
+   cd VibeOS
    ```
 
 2. **Set up development environment:**
@@ -90,6 +90,8 @@ brew install --cask docker
 brew install qemu  # Optional, for testing
 ```
 
+**Note for Apple Silicon (M1/M2) Macs**: The build uses x86_64 emulation via Docker's `--platform` flag. Builds will be slower but fully functional.
+
 ### Linux (Ubuntu/Debian)
 ```bash
 sudo apt update
@@ -106,12 +108,14 @@ sudo pacman -S qemu  # Optional, for testing
 ## Current Status
 
 This is a **v0.1.0-alpha** development build that provides:
-- ✅ Bootable Arch Linux base system
-- ✅ Consistent build environment using Docker
+- ✅ Bootable Arch Linux base system (fixed in latest commit)
+- ✅ Consistent build environment using Docker (x86_64 emulation on ARM Macs)
 - ✅ Simple command-line interface for building
 - ✅ QEMU testing support
 - ✅ Natural language shell (vibesh) - understands commands like "create new python project"
-- ✅ Auto-launches on boot (TTY1) with regular bash on other TTYs for debugging
+- ✅ UEFI and BIOS boot support
+- ✅ Proper archiso configuration with mkinitcpio hooks
+- 🚧 Auto-launch vibesh on boot (ready but needs testing)
 - 🚧 LLM integration for advanced AI assistance (coming soon)
 
 ## Contributing
@@ -143,9 +147,15 @@ make shell
 ### Build Troubleshooting
 If the build fails:
 1. Check Docker is running: `docker ps`
-2. Ensure enough disk space: `df -h`
+2. Ensure enough disk space: `df -h` (need ~10GB free)
 3. Clean and retry: `make clean && make build`
-4. Check build logs in the Docker output
+4. For debugging: `bash scripts/build-iso-debug.sh`
+5. Check if packages installed: Look for "Python installed: 1" in debug output
+
+**Common Issues:**
+- **"Failed to mount on real root"**: Missing archiso hooks - rebuild with latest code
+- **"No space left"**: Clean Docker: `docker system prune`
+- **Slow on M1/M2 Mac**: Normal due to x86 emulation, build takes 5-10 minutes
 
 ## VibeOS Natural Language Interface
 
@@ -177,10 +187,17 @@ Press `Ctrl+Alt+F2` through `F6` to access debug bash shells if needed.
 
 This project is open source and available under the [MIT License](LICENSE).
 
+## Known Issues
+
+- **Boot failures on first build**: Run `make clean && make build` to ensure proper archiso hooks
+- **Slow builds on Apple Silicon**: Due to x86_64 emulation in Docker
+- **Natural language shell**: Currently basic regex parsing, LLM integration coming soon
+
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/vibeos/vibeos/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/vibeos/vibeos/discussions)
+- **Issues**: [GitHub Issues](https://github.com/vmihalis/VibeOS/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/vmihalis/VibeOS/discussions)
+- **Repository**: [github.com/vmihalis/VibeOS](https://github.com/vmihalis/VibeOS)
 - **Documentation**: See the `docs/` directory
 
 ---
