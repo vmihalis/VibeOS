@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""
+Quick test to verify vibesh can load without starting the full shell
+"""
+
+import sys
+import os
+
+print("Testing VibeOS Shell modules...")
+
+# Add vibeos to path
+sys.path.insert(0, '/usr/lib/vibeos')
+
+try:
+    from shell.vibesh import main
+    print("✓ Success! vibesh modules loaded correctly")
+    print("You can now run: python3 /usr/local/bin/vibesh")
+except ImportError as e:
+    print(f"✗ Error loading vibesh: {e}")
+    print("\nChecking what files exist:")
+    
+    if os.path.exists('/usr/lib/vibeos/shell'):
+        print("Files in /usr/lib/vibeos/shell:")
+        for f in os.listdir('/usr/lib/vibeos/shell'):
+            print(f"  - {f}")
+    else:
+        print("/usr/lib/vibeos/shell directory not found!")
+    
+    print("\nPython path:")
+    for p in sys.path:
+        print(f"  - {p}")

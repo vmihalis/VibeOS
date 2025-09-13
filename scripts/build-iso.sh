@@ -29,7 +29,10 @@ mkdir -p output
 # Ensure shell modules are in place
 echo "Copying VibeOS shell modules..."
 mkdir -p src/archiso/airootfs/usr/lib/vibeos/shell
+# Copy all Python files including __init__.py
 cp -r src/vibeos/shell/*.py src/archiso/airootfs/usr/lib/vibeos/shell/ 2>/dev/null || true
+# Ensure __init__.py exists
+touch src/archiso/airootfs/usr/lib/vibeos/shell/__init__.py
 
 # Run the build in Docker
 echo "Starting ISO build in Docker container..."

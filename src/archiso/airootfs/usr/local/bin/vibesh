@@ -10,8 +10,14 @@ import os
 # Add vibeos modules to path
 sys.path.insert(0, '/usr/lib/vibeos')
 
-# Import and run the shell
-from shell.vibesh import main
-
-if __name__ == "__main__":
+try:
+    # Import and run the shell
+    from shell.vibesh import main
     main()
+except ImportError as e:
+    print(f"Error: Failed to import vibesh modules: {e}")
+    print("Please ensure all VibeOS shell modules are installed in /usr/lib/vibeos/shell/")
+    sys.exit(1)
+except Exception as e:
+    print(f"Error running vibesh: {e}")
+    sys.exit(1)

@@ -18,4 +18,10 @@ file_permissions=(
   ["/etc/shadow"]="0:0:400"
   ["/etc/gshadow"]="0:0:0400"
   ["/root"]="0:0:750"
+  ["/usr/local/bin/vibesh"]="0:0:755"
+  ["/usr/lib/vibeos/shell/vibesh.py"]="0:0:755"
+  ["/usr/lib/vibeos/shell/parser.py"]="0:0:644"
+  ["/usr/lib/vibeos/shell/commands.py"]="0:0:644"
+  ["/usr/lib/vibeos/shell/context.py"]="0:0:644"
+  ["/usr/lib/vibeos/shell/__init__.py"]="0:0:644"
 )

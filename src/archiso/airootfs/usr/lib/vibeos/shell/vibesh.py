@@ -12,9 +12,20 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
-from parser import NaturalLanguageParser
-from commands import CommandExecutor
-from context import ContextManager
+# Ensure the module path is set correctly
+if '/usr/lib/vibeos' not in sys.path:
+    sys.path.insert(0, '/usr/lib/vibeos')
+
+try:
+    # Try relative imports first (when run as a module)
+    from .parser import NaturalLanguageParser
+    from .commands import CommandExecutor
+    from .context import ContextManager
+except ImportError:
+    # Fall back to absolute imports (when run directly)
+    from parser import NaturalLanguageParser
+    from commands import CommandExecutor
+    from context import ContextManager
 
 
 class VibeShell:
