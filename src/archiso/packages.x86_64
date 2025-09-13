@@ -1,102 +1,28 @@
-# VibeOS Base Package List
-# Minimal packages for a bootable Arch Linux system
+# VibeOS Minimal Package List
+# Absolute minimum for bootable archiso
 
-# Base system
+# Core system
 base
 linux
 linux-firmware
+
+# CRITICAL for archiso boot
 mkinitcpio
 mkinitcpio-archiso
+mkinitcpio-nfs-utils
+
+# Boot loader
 syslinux
 
-# Boot loaders
-grub
-efibootmgr
-
-# File systems
+# Essential filesystem
 dosfstools
-e2fsprogs
-ntfs-3g
 squashfs-tools
 
-# Network
-dhcpcd
-iwd
-networkmanager
-
-# System utilities
-arch-install-scripts
+# Base utilities  
 bash
 coreutils
-file
-findutils
-gawk
-grep
-gzip
-iproute2
-iputils
-pciutils
-procps-ng
-psmisc
-sed
-shadow
-sudo
 systemd
-systemd-sysvcompat
-tar
 util-linux
-which
 
-# Hardware detection
-dmidecode
-hdparm
-hwinfo
-lshw
-usbutils
-
-# Text editors (minimal)
-nano
-vim
-
-# Terminal
-tmux
-
-# Archive tools
-bzip2
-p7zip
-unrar
-unzip
-xz
-zip
-
-# Development basics (for future VibeOS development)
-base-devel
-git
+# For testing
 python
-python-pip
-
-# Python development and NLP
-python-numpy
-python-requests
-python-rich
-python-prompt_toolkit
-
-# Node.js and npm for modern development
-nodejs
-npm
-
-# Additional development tools
-neovim
-htop
-tree
-jq
-ripgrep
-fd
-bat
-exa
-zsh
-oh-my-zsh-git
-
-# Container tools (for future LLM support)
-docker
-docker-compose

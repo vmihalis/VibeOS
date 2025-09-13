@@ -1,7 +1,8 @@
 # VibeOS Build Environment
 # Based on Arch Linux with archiso tools for building ISO images
 
-FROM archlinux:latest
+# Force x86_64 platform for compatibility with Apple Silicon
+FROM --platform=linux/amd64 archlinux:latest
 
 # Update system and install build dependencies
 RUN pacman -Syu --noconfirm && \
