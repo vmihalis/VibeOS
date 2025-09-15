@@ -23,6 +23,14 @@ bash
 coreutils
 systemd
 util-linux
+which
 
-# For testing
+# Programming languages and tools
 python
+nodejs
+npm
+
+# Network tools (for npm to work)
+curl
+wget
+ca-certificates

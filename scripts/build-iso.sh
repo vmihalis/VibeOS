@@ -29,10 +29,15 @@ mkdir -p output
 # Ensure shell modules are in place
 echo "Copying VibeOS shell modules..."
 mkdir -p src/archiso/airootfs/usr/lib/vibeos/shell
-# Copy all Python files including __init__.py
+# Copy all Python files including __init__.py and ai_selector
 cp -r src/vibeos/shell/*.py src/archiso/airootfs/usr/lib/vibeos/shell/ 2>/dev/null || true
 # Ensure __init__.py exists
 touch src/archiso/airootfs/usr/lib/vibeos/shell/__init__.py
+# Make launcher scripts executable
+chmod +x src/archiso/airootfs/usr/local/bin/vibesh 2>/dev/null || true
+chmod +x src/archiso/airootfs/usr/local/bin/vibeos-ai-selector 2>/dev/null || true
+# Make customize script executable
+chmod +x src/archiso/airootfs/root/customize_airootfs.sh 2>/dev/null || true
 
 # Run the build in Docker
 echo "Starting ISO build in Docker container..."
@@ -74,7 +79,9 @@ if ls output/*.iso 1> /dev/null 2>&1; then
     echo "Size: $ISO_SIZE"
     echo ""
     echo "VibeOS Features:"
-    echo "  • Natural language shell (vibesh) on TTY1"
+    echo "  • Claude Code AI assistant (pre-installed)"
+    echo "  • Natural language shell (vibesh)"
+    echo "  • AI assistant selector on TTY1"
     echo "  • Debug bash shells on TTY2-TTY6 (Ctrl+Alt+F2-F6)"
     echo "  • Commands like 'create new python project'"
     echo ""

@@ -23,6 +23,10 @@ vibeos() {
     exec /usr/local/bin/vibesh
 }
 
+# AI Assistant commands
+alias claude='claude-code'
+alias ai='vibeos-ai-selector'
+
 # Display message on non-TTY1 terminals
 if [[ "$(tty)" != "/dev/tty1" ]]; then
     echo "========================================"
@@ -31,6 +35,7 @@ if [[ "$(tty)" != "/dev/tty1" ]]; then
     echo ""
     echo "You're in a debug bash shell."
     echo "Type 'vibeos' to launch the natural language shell."
-    echo "TTY1 runs vibesh by default."
+    echo "Type 'ai' to select AI assistant (Claude Code)."
+    echo "TTY1 runs AI selector by default."
     echo ""
 fi

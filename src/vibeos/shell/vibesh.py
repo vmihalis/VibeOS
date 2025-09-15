@@ -61,6 +61,8 @@ class VibeShell:
             "test",
             "git",
             "help",
+            "switch to claude code",
+            "launch ai assistant",
             "exit"
         ]
         
@@ -79,6 +81,7 @@ class VibeShell:
         print("  • 'install nodejs and npm'")
         print("  • 'show system information'")
         print("  • 'git status of current project'")
+        print("  • 'switch to claude code' (AI assistant)")
         print("\nType 'help' for more examples or 'exit' to quit.\n")
     
     def get_prompt(self) -> str:
@@ -119,6 +122,11 @@ class VibeShell:
             self.show_help()
             return True
         
+        # Handle AI assistant switching
+        if any(phrase in user_input.lower() for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
+            self.launch_ai_assistant()
+            return True
+        
         # Parse natural language input
         intent, params = self.parser.parse(user_input)
         
@@ -147,6 +155,10 @@ class VibeShell:
         print("\n" + "="*60)
         print("VibeOS Natural Language Commands")
         print("="*60)
+        print("\nAI Assistants:")
+        print("  • switch to claude code")
+        print("  • launch ai assistant")
+        print("  • install claude code")
         print("\nProject Management:")
         print("  • create a new [python/node/react/rust] project called [name]")
         print("  • initialize git repository")
@@ -175,6 +187,23 @@ class VibeShell:
         print("  • show current directory")
         print("  • list files")
         print("\n" + "="*60)
+    
+    def launch_ai_assistant(self):
+        """Launch AI assistant selector"""
+        print("\n🤖 Launching AI Assistant Selector...")
+        try:
+            # Try to launch the AI selector
+            result = subprocess.run(
+                ["/usr/local/bin/vibeos-ai-selector"],
+                check=False
+            )
+            if result.returncode != 0:
+                print("Failed to launch AI assistant selector.")
+        except FileNotFoundError:
+            print("AI assistant selector not found. Claude Code may not be installed yet.")
+            print("You can install it manually with: npm install -g @anthropic-ai/claude-code")
+        except Exception as e:
+            print(f"Error launching AI assistant: {e}")
     
     def run(self):
         """Main shell loop"""

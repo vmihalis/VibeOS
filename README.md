@@ -115,8 +115,9 @@ This is a **v0.1.0-alpha** development build that provides:
 - ✅ Natural language shell (vibesh) - understands commands like "create new python project"
 - ✅ UEFI and BIOS boot support
 - ✅ Proper archiso configuration with mkinitcpio hooks
-- 🚧 Auto-launch vibesh on boot (ready but needs testing)
-- 🚧 LLM integration for advanced AI assistance (coming soon)
+- ✅ Auto-launch AI assistant selector on boot
+- ✅ Claude Code pre-installed - Anthropic's official CLI assistant ready to use
+- 🚧 Additional AI assistants (Gemini CLI, Codex - coming soon)
 
 ## Contributing
 
@@ -157,9 +158,19 @@ If the build fails:
 - **"No space left"**: Clean Docker: `docker system prune`
 - **Slow on M1/M2 Mac**: Normal due to x86 emulation, build takes 5-10 minutes
 
-## VibeOS Natural Language Interface
+## VibeOS AI Assistant & Natural Language Interface
 
-When you boot VibeOS, you'll see the natural language shell (vibesh) on TTY1. You can speak naturally:
+### AI Assistant Selection
+When you boot VibeOS, you'll be presented with AI assistant options on TTY1:
+
+- **Claude Code** - Anthropic's official CLI for Claude (pre-installed and ready to use)
+- **Gemini CLI** - Google's AI assistant (coming soon)
+- **Codex** - OpenAI powered assistant (coming soon)
+
+Claude Code comes pre-installed in VibeOS, so you can start using it immediately without any installation or network connection. The system remembers your preference for future boots.
+
+### Natural Language Shell (vibesh)
+VibeOS includes a natural language shell that understands commands like:
 
 - **"create a new python project called myapp"** - Sets up a complete Python project structure
 - **"install nodejs and npm"** - Automatically detects and uses the right package manager
@@ -168,6 +179,12 @@ When you boot VibeOS, you'll see the natural language shell (vibesh) on TTY1. Yo
 - **"commit changes with message 'initial commit'"** - Stages and commits
 - **"go to Documents folder"** - Natural navigation
 - **"create virtual environment"** - Python venv setup
+- **"switch to claude code"** - Launch Claude Code AI assistant
+
+### Quick Commands
+- Type `ai` in any shell to launch the AI assistant selector
+- Type `claude` to directly launch Claude Code (if installed)
+- Type `vibeos` to launch the natural language shell
 
 Press `Ctrl+Alt+F2` through `F6` to access debug bash shells if needed.
 
@@ -178,7 +195,8 @@ Press `Ctrl+Alt+F2` through `F6` to access debug bash shells if needed.
 - [x] Bootable Arch Linux ISO
 - [x] Natural language processing engine (basic)
 - [x] Custom VibeOS shell (vibesh)
-- [ ] LLM integration (Claude, GPT, Ollama)
+- [x] Claude Code pre-installed (Anthropic's CLI)
+- [ ] Additional LLM integrations (Gemini, Codex)
 - [ ] Voice input/output support
 - [ ] Advanced context awareness
 - [ ] Application ecosystem
