@@ -26,6 +26,12 @@ echo "Cleaning previous build..."
 rm -rf src/archiso/work
 mkdir -p output
 
+# Optionally pre-download Claude Code (fallback for offline build)
+if [ -f scripts/prepare-claude-code.sh ]; then
+    echo "Preparing Claude Code package (optional fallback)..."
+    bash scripts/prepare-claude-code.sh || true
+fi
+
 # Ensure shell modules are in place
 echo "Copying VibeOS shell modules..."
 mkdir -p src/archiso/airootfs/usr/lib/vibeos/shell
@@ -45,8 +51,10 @@ echo ""
 
 docker run --rm \
     --privileged \
+    --network=host \
     -v "$(pwd)/src:/build/src:rw" \
     -v "$(pwd)/output:/output:rw" \
+    -v "/etc/resolv.conf:/etc/resolv.conf:ro" \
     vibeos-builder:latest \
     bash -c "
         set -e
@@ -55,8 +63,13 @@ docker run --rm \
         
         echo 'Building ISO with archiso...'
         cd /tmp/vibeos-profile
-        
-        # Standard mkarchiso build - let it handle everything
+
+        # Ensure the host's DNS config is available to the build
+        echo 'Copying DNS configuration for build environment...'
+        sudo cp /etc/resolv.conf /tmp/vibeos-profile/airootfs/etc/resolv.conf 2>/dev/null || true
+
+        # Build with mkarchiso - network should work in customize script
+        echo 'Running mkarchiso (this will download Claude Code)...'
         sudo mkarchiso -v -w work -o /output .
         
         # Fix permissions on output

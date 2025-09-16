@@ -1,0 +1,36 @@
+{
+  "debug": {
+    "enabled": true,
+    "verbose_boot": true,
+    "verbose_runtime": true,
+    "log_file": "/var/log/vibeos-debug.log"
+  },
+  "claude_code": {
+    "enabled": true,
+    "mode": "subscription",
+    "command_timeout": 10,
+    "max_retries": 3,
+    "cache_commands": true,
+    "cache_ttl": 3600,
+    "fallback_to_regex": true,
+    "verbose": true,
+    "features": {
+      "multi_step_commands": true,
+      "context_awareness": true,
+      "auto_correction": true,
+      "learning_mode": false
+    }
+  },
+  "prompts": {
+    "system_role": "You are VibeOS's natural language interpreter. Convert user requests into executable shell commands.",
+    "command_style": "minimal",
+    "include_explanations": false
+  },
+  "integrations": {
+    "git": true,
+    "docker": true,
+    "npm": true,
+    "python": true,
+    "systemd": true
+  }
+}

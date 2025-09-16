@@ -147,25 +147,27 @@ class AIAssistantSelector:
         print("\n" + "="*60)
         print("    🤖 VibeOS AI Assistant Selection")
         print("="*60)
-        print("\nChoose your AI assistant:")
+        print("\nChoose your AI assistant mode:")
         print("")
-        
+
         for key, assistant in self.assistants.items():
             status_icon = "✅" if assistant["status"] == "available" else "🔜"
             if assistant["status"] == "available" and assistant["command"]:
                 if self.is_claude_code_preinstalled():
-                    installed = " [Pre-installed]"
+                    installed = " [Pre-installed & Integrated]"
                 elif self.is_claude_code_installed():
-                    installed = " [Installed]"
+                    installed = " [Installed & Integrated]"
                 else:
                     installed = ""
             else:
                 installed = ""
             print(f"  {key}. {assistant['name']} {status_icon}{installed}")
             print(f"     {assistant['description']}")
+            if key == "1" and self.is_claude_code_installed():
+                print("     💡 Powers natural language understanding in vibesh shell")
             print("")
-        
-        print("  4. Continue without AI assistant (use vibesh only)")
+
+        print("  4. Continue with vibesh (pattern matching mode)")
         print("")
         print("  0. Exit")
         print("\n" + "="*60)
@@ -233,11 +235,19 @@ class AIAssistantSelector:
                 
                 elif choice == "1":
                     # Claude Code
-                    if self.launch_claude_code():
-                        return "claude-code"
-                    else:
-                        print("\nReturning to menu...")
-                        continue
+                    config = self.load_config()
+                    config["selected_assistant"] = "claude-code"
+                    config["use_claude_parser"] = True
+                    config["auto_launch"] = True
+                    self.save_config(config)
+
+                    print("\n✅ Claude Code selected!")
+                    print("🤖 Natural language understanding is now enabled in vibesh.")
+                    print("\nYou can now:")
+                    print("  • Use vibesh with full natural language understanding")
+                    print("  • Launch Claude Code directly by typing 'claude-code'")
+                    print("\nStarting vibesh with Claude Code integration...")
+                    return "claude-code-integrated"
                 
                 elif choice in ["2", "3"]:
                     # Coming soon options
@@ -249,10 +259,15 @@ class AIAssistantSelector:
                 
                 elif choice == "4":
                     # Continue without AI assistant
-                    print("\n✅ Continuing with VibeOS natural language shell...")
+                    if self.is_claude_code_installed():
+                        print("\n✅ Continuing with VibeOS shell in pattern matching mode...")
+                        print("ℹ️  Note: Claude Code is installed but won't be used for natural language.")
+                    else:
+                        print("\n✅ Continuing with VibeOS natural language shell...")
                     config = self.load_config()
                     config["selected_assistant"] = "vibesh"
                     config["auto_launch"] = False
+                    config["use_claude_parser"] = False
                     self.save_config(config)
                     return "vibesh"
                 

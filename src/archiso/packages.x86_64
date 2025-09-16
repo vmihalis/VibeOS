@@ -34,3 +34,13 @@ npm
 curl
 wget
 ca-certificates
+iputils
+bind
+inetutils
+
+# Network management (for internet connectivity)
+networkmanager
+dhcpcd
+iwd
+nss-mdns
+openresolv

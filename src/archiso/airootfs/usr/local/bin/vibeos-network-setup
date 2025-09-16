@@ -1,0 +1,70 @@
+#!/bin/bash
+# VibeOS Network Setup Script
+# Ensures network connectivity on boot
+
+set -e
+
+echo "[NETWORK] Starting VibeOS network setup..."
+
+# Enable and start NetworkManager if available
+if command -v nmcli &> /dev/null; then
+    echo "[NETWORK] Starting NetworkManager..."
+    systemctl enable NetworkManager 2>/dev/null || true
+    systemctl start NetworkManager 2>/dev/null || true
+
+    # Wait for NetworkManager to be ready
+    sleep 2
+
+    # Enable all ethernet connections
+    for device in $(nmcli device status | grep ethernet | awk '{print $1}'); do
+        echo "[NETWORK] Enabling ethernet device: $device"
+        nmcli device connect "$device" 2>/dev/null || true
+    done
+fi
+
+# Fallback to dhcpcd if NetworkManager isn't working
+if ! ping -c 1 8.8.8.8 &> /dev/null; then
+    echo "[NETWORK] NetworkManager failed, trying dhcpcd..."
+
+    # Find all network interfaces
+    for interface in $(ip link show | grep -E "^[0-9]+:" | cut -d: -f2 | tr -d ' ' | grep -v "^lo$"); do
+        echo "[NETWORK] Configuring interface: $interface"
+
+        # Bring interface up
+        ip link set "$interface" up 2>/dev/null || true
+
+        # Try DHCP on the interface
+        dhcpcd -n "$interface" 2>/dev/null &
+    done
+
+    # Wait for DHCP
+    sleep 3
+fi
+
+# Ensure DNS is configured
+if [ ! -f /etc/resolv.conf ] || [ ! -s /etc/resolv.conf ]; then
+    echo "[NETWORK] Configuring DNS..."
+    cat > /etc/resolv.conf << EOF
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+nameserver 1.1.1.1
+EOF
+fi
+
+# Test connectivity
+if ping -c 1 8.8.8.8 &> /dev/null; then
+    echo "[NETWORK] ✅ Network connectivity established!"
+
+    # Test DNS
+    if nslookup api.anthropic.com &> /dev/null || host api.anthropic.com &> /dev/null; then
+        echo "[NETWORK] ✅ DNS resolution working!"
+    else
+        echo "[NETWORK] ⚠️ DNS resolution not working"
+    fi
+else
+    echo "[NETWORK] ⚠️ No network connectivity"
+    echo "[NETWORK] You may need to manually configure your network"
+    echo "[NETWORK] Try: sudo dhcpcd eth0 or sudo nmcli device connect eth0"
+fi
+
+echo "[NETWORK] Network setup complete"

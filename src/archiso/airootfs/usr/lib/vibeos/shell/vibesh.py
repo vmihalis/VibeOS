@@ -18,26 +18,53 @@ if '/usr/lib/vibeos' not in sys.path:
 
 try:
     # Try relative imports first (when run as a module)
-    from .parser import NaturalLanguageParser
-    from .commands import CommandExecutor
-    from .context import ContextManager
+    from .claude_code_parser import ClaudeCodeParser
 except ImportError:
     # Fall back to absolute imports (when run directly)
-    from parser import NaturalLanguageParser
-    from commands import CommandExecutor
-    from context import ContextManager
+    from claude_code_parser import ClaudeCodeParser
 
 
 class VibeShell:
     """Main shell class for VibeOS natural language interface"""
     
     def __init__(self):
-        self.parser = NaturalLanguageParser()
-        self.executor = CommandExecutor()
-        self.context = ContextManager()
+        # Check debug mode
+        self.debug_mode = os.environ.get('VIBEOS_DEBUG', 'true').lower() in ['true', '1', 'yes', 'on']
+
+        if self.debug_mode:
+            print("\n[DEBUG] Initializing VibeOS Shell...")
+            print(f"[DEBUG] Python version: {sys.version}")
+            print(f"[DEBUG] Working directory: {os.getcwd()}")
+            print(f"[DEBUG] PATH: {os.environ.get('PATH', 'not set')}")
+
+        # Claude Code is mandatory - no fallback
+        self.parser = ClaudeCodeParser()
+
+        if not self.parser.claude_available:
+            print("\n" + "="*60)
+            print("⚠️  Claude Code is REQUIRED to use VibeOS")
+            print("="*60)
+            print("\nVibeOS cannot function without Claude Code.")
+            print("Please install and authenticate Claude Code:")
+            print("\n  1. Install: npm install -g @anthropic-ai/claude-code")
+            print("  2. Authenticate: claude-code auth")
+            print("\n" + "="*60)
+
+            if self.debug_mode:
+                print("\n[DEBUG] Troubleshooting:")
+                print("[DEBUG] Run 'vibeos-debug status' for detailed diagnostics")
+                print("[DEBUG] Run 'vibeos-debug fix' to attempt auto-fix")
+
+            print("\nSystem will continue but commands won't work until Claude Code is available.\n")
+        else:
+            print("🤖 Claude Code active - VibeOS ready for natural language!")
+            if self.debug_mode:
+                print("[DEBUG] Claude Code detection successful")
+
+        # No executor or context needed - Claude Code handles everything
         self.running = True
         self.history_file = Path.home() / '.vibesh_history'
-        
+
         # Initialize readline for better input handling
         self._setup_readline()
         
@@ -74,14 +101,24 @@ class VibeShell:
     def print_banner(self):
         """Display welcome banner"""
         print("\n" + "="*60)
-        print("    VibeOS Natural Language Shell v0.1.0")
+        print("    VibeOS Natural Language Shell v0.2.0")
         print("="*60)
-        print("\nSpeak naturally. I understand commands like:")
-        print("  • 'create a new python project called myapp'")
-        print("  • 'install nodejs and npm'")
-        print("  • 'show system information'")
-        print("  • 'git status of current project'")
-        print("  • 'switch to claude code' (AI assistant)")
+
+        if self.parser.claude_available:
+            print("\n🤖 Claude Code Active - Speak naturally, I understand everything!")
+            print("\nExamples of what you can say:")
+            print("  • 'set up a complete React project with authentication'")
+            print("  • 'install everything I need for machine learning'")
+            print("  • 'create a REST API with user management'")
+            print("  • 'fix the Python errors in my project'")
+            print("  • 'optimize this code for better performance'")
+        else:
+            print("\n⚠️  Claude Code is not available - VibeOS requires Claude Code to function")
+            print("\nTo use VibeOS, you must:")
+            print("  1. Install Claude Code: npm install -g @anthropic-ai/claude-code")
+            print("  2. Authenticate: claude-code auth")
+            print("  3. Restart vibesh")
+
         print("\nType 'help' for more examples or 'exit' to quit.\n")
     
     def get_prompt(self) -> str:
@@ -112,42 +149,63 @@ class VibeShell:
     
     def process_input(self, user_input: str) -> bool:
         """Process user input and execute appropriate commands"""
-        
+
         # Handle special commands
         if user_input.lower() in ['exit', 'quit', 'bye']:
             print("Goodbye! Stay in the flow.")
             return False
-        
+
         if user_input.lower() in ['help', '?']:
             self.show_help()
             return True
-        
+
         # Handle AI assistant switching
         if any(phrase in user_input.lower() for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
             self.launch_ai_assistant()
             return True
-        
-        # Parse natural language input
-        intent, params = self.parser.parse(user_input)
-        
-        if intent == "unknown":
-            print(f"I'm not sure how to '{user_input}'.")
-            print("Try rephrasing or type 'help' for examples.")
+
+        # Parse natural language input with Claude Code
+        context_data = {
+            'cwd': os.getcwd()
+        }
+
+        # Claude Code processes everything
+        intent, params = self.parser.parse(user_input, context_data)
+
+        # Handle Claude Code specific intents
+        if intent == "execute_command":
+            # Claude Code generated a direct command to execute
+            try:
+                print(f"💭 Executing: {params['command']}")
+                result = subprocess.run(
+                    params['command'],
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    cwd=os.getcwd()
+                )
+                if result.stdout:
+                    print(result.stdout)
+                if result.stderr and result.returncode != 0:
+                    print(f"⚠️  {result.stderr}")
+                return True
+            except Exception as e:
+                print(f"Error executing command: {e}")
+                return True
+
+        elif intent in ["claude_not_available", "claude_required", "claude_error"]:
+            print(f"\n❌ {params.get('error', 'Claude Code is required')}")
+            if not self.parser.claude_available:
+                print("\nInstall Claude Code: npm install -g @anthropic-ai/claude-code")
+                print("Then authenticate: claude-code auth")
             return True
-        
-        # Execute the command
-        try:
-            result = self.executor.execute(intent, params, self.context)
-            
-            if result.get('success'):
-                if result.get('output'):
-                    print(result['output'])
-            else:
-                print(f"Error: {result.get('error', 'Command failed')}")
-                
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            
+
+        else:
+            # Any other response from Claude Code parser
+            print(f"\n❌ Unexpected response: {intent}")
+            if params.get('error'):
+                print(f"Error: {params['error']}")
+
         return True
     
     def show_help(self):

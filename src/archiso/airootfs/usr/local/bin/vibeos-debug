@@ -1,0 +1,283 @@
+#!/bin/bash
+# VibeOS Debug Control and Diagnostic Tool
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+CONFIG_FILE="/etc/vibeos/claude_config.json"
+
+show_status() {
+    echo -e "${BLUE}=== VibeOS Debug Status ===${NC}"
+    echo ""
+
+    # Check environment variable
+    echo -n "Environment VIBEOS_DEBUG: "
+    if [ -n "$VIBEOS_DEBUG" ]; then
+        echo "$VIBEOS_DEBUG"
+    else
+        echo "not set (defaults to config)"
+    fi
+
+    # Check config file
+    echo -n "Config debug.enabled: "
+    if [ -f "$CONFIG_FILE" ]; then
+        grep -o '"enabled":[^,}]*' "$CONFIG_FILE" | head -1 | cut -d: -f2 | tr -d ' '
+    else
+        echo "config not found"
+    fi
+
+    echo ""
+    echo -e "${BLUE}=== Claude Code Installation ===${NC}"
+    echo ""
+
+    # Check wrapper
+    echo -n "Wrapper /usr/bin/claude-code: "
+    if [ -f /usr/bin/claude-code ]; then
+        echo -e "${GREEN}EXISTS${NC}"
+        echo "  Contents:"
+        head -5 /usr/bin/claude-code | sed 's/^/    /'
+        echo -n "  Executable: "
+        [ -x /usr/bin/claude-code ] && echo -e "${GREEN}YES${NC}" || echo -e "${RED}NO${NC}"
+    else
+        echo -e "${RED}NOT FOUND${NC}"
+    fi
+
+    echo ""
+    echo -n "Node module: "
+    MODULE_PATH="/usr/lib/node_modules/@anthropic-ai/claude-code"
+    if [ -d "$MODULE_PATH" ]; then
+        echo -e "${GREEN}EXISTS${NC}"
+        echo "  Path: $MODULE_PATH"
+        echo -n "  cli.js: "
+        [ -f "$MODULE_PATH/cli.js" ] && echo -e "${GREEN}EXISTS${NC}" || echo -e "${RED}NOT FOUND${NC}"
+        echo -n "  Size: "
+        du -sh "$MODULE_PATH" 2>/dev/null | cut -f1
+    else
+        echo -e "${RED}NOT FOUND${NC}"
+    fi
+
+    echo ""
+    echo -e "${BLUE}=== Execution Tests ===${NC}"
+    echo ""
+
+    # Test direct execution
+    echo "Testing 'which claude-code':"
+    which claude-code 2>/dev/null || echo "  Not in PATH"
+
+    echo ""
+    echo "Testing '/usr/bin/claude-code --version':"
+    if /usr/bin/claude-code --version 2>&1; then
+        echo -e "  ${GREEN}SUCCESS${NC}"
+    else
+        echo -e "  ${RED}FAILED${NC} (exit code: $?)"
+    fi
+
+    echo ""
+    echo "Testing 'node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js --version':"
+    if node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js --version 2>&1; then
+        echo -e "  ${GREEN}SUCCESS${NC}"
+    else
+        echo -e "  ${RED}FAILED${NC} (exit code: $?)"
+    fi
+
+    echo ""
+    echo -e "${BLUE}=== Network Status ===${NC}"
+    echo ""
+
+    # Check network interfaces
+    echo "Network interfaces:"
+    ip link show | grep -E "^[0-9]+:" | while read line; do
+        interface=$(echo "$line" | cut -d: -f2 | tr -d ' ')
+        state=$(echo "$line" | grep -o "state [A-Z]*" | cut -d' ' -f2)
+        echo "  $interface: $state"
+    done
+
+    echo ""
+    echo -n "Internet connectivity (8.8.8.8): "
+    if ping -c 1 -W 2 8.8.8.8 &> /dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}FAILED${NC}"
+    fi
+
+    echo -n "DNS resolution (api.anthropic.com): "
+    if nslookup api.anthropic.com &> /dev/null || host api.anthropic.com &> /dev/null; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}FAILED${NC}"
+    fi
+
+    echo ""
+    echo "DNS servers:"
+    cat /etc/resolv.conf 2>/dev/null | grep nameserver | head -3 | sed 's/^/  /'
+
+    echo ""
+    echo "IP addresses:"
+    ip addr show | grep "inet " | grep -v "127.0.0.1" | awk '{print "  " $2}'
+
+    echo ""
+    echo -e "${BLUE}=== System Information ===${NC}"
+    echo "Node version: $(node --version 2>/dev/null || echo 'not found')"
+    echo "NPM version: $(npm --version 2>/dev/null || echo 'not found')"
+    echo "Python version: $(python --version 2>&1 || echo 'not found')"
+    echo "PATH: $PATH"
+}
+
+enable_debug() {
+    echo "Enabling debug mode..."
+
+    # Set environment variable
+    export VIBEOS_DEBUG=true
+    echo "export VIBEOS_DEBUG=true" >> ~/.bashrc
+
+    # Update config if exists
+    if [ -f "$CONFIG_FILE" ]; then
+        # Use Python to safely update JSON
+        python3 -c "
+import json
+with open('$CONFIG_FILE', 'r') as f:
+    config = json.load(f)
+if 'debug' not in config:
+    config['debug'] = {}
+config['debug']['enabled'] = True
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump(config, f, indent=2)
+" 2>/dev/null || echo "Could not update config file"
+    fi
+
+    echo -e "${GREEN}Debug mode enabled${NC}"
+    echo "Restart vibesh for changes to take effect"
+}
+
+disable_debug() {
+    echo "Disabling debug mode..."
+
+    # Set environment variable
+    export VIBEOS_DEBUG=false
+    echo "export VIBEOS_DEBUG=false" >> ~/.bashrc
+
+    # Update config if exists
+    if [ -f "$CONFIG_FILE" ]; then
+        python3 -c "
+import json
+with open('$CONFIG_FILE', 'r') as f:
+    config = json.load(f)
+if 'debug' not in config:
+    config['debug'] = {}
+config['debug']['enabled'] = False
+with open('$CONFIG_FILE', 'w') as f:
+    json.dump(config, f, indent=2)
+" 2>/dev/null || echo "Could not update config file"
+    fi
+
+    echo -e "${GREEN}Debug mode disabled${NC}"
+    echo "Restart vibesh for changes to take effect"
+}
+
+fix_claude() {
+    echo -e "${YELLOW}Attempting to fix Claude Code installation...${NC}"
+    echo ""
+
+    # First check network
+    echo "Checking network connectivity..."
+    if ! ping -c 1 8.8.8.8 &> /dev/null; then
+        echo -e "${YELLOW}No network connectivity detected, attempting to fix...${NC}"
+
+        # Try to enable network
+        if [ -x /usr/local/bin/vibeos-network-setup ]; then
+            /usr/local/bin/vibeos-network-setup
+        else
+            # Manual network setup
+            echo "Trying manual network setup..."
+            for interface in $(ip link show | grep -E "^[0-9]+:" | cut -d: -f2 | tr -d ' ' | grep -v "^lo$"); do
+                ip link set "$interface" up 2>/dev/null || true
+                dhcpcd -n "$interface" 2>/dev/null &
+            done
+            sleep 3
+        fi
+
+        # Check again
+        if ! ping -c 1 8.8.8.8 &> /dev/null; then
+            echo -e "${RED}Still no network connectivity${NC}"
+            echo "Please connect to network manually and try again"
+            return 1
+        else
+            echo -e "${GREEN}Network connectivity established!${NC}"
+        fi
+    fi
+
+    # Check if module exists
+    if [ -d "/usr/lib/node_modules/@anthropic-ai/claude-code" ]; then
+        echo "Claude Code module found, creating wrapper..."
+
+        cat > /usr/bin/claude-code << 'EOF'
+#!/bin/bash
+exec node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js "$@"
+EOF
+        chmod +x /usr/bin/claude-code
+        echo -e "${GREEN}Wrapper created${NC}"
+
+        # Test it
+        if /usr/bin/claude-code --version &>/dev/null; then
+            echo -e "${GREEN}✓ Claude Code is now working!${NC}"
+        else
+            echo -e "${RED}Wrapper created but still not working${NC}"
+            echo "Try running: npm install -g @anthropic-ai/claude-code"
+        fi
+    else
+        echo -e "${RED}Claude Code module not found${NC}"
+        echo "Installing Claude Code..."
+        npm install -g @anthropic-ai/claude-code
+
+        if [ -d "/usr/lib/node_modules/@anthropic-ai/claude-code" ]; then
+            echo -e "${GREEN}Claude Code installed successfully!${NC}"
+            fix_claude  # Recursive call to create wrapper
+        else
+            echo -e "${RED}Installation failed${NC}"
+        fi
+    fi
+}
+
+# Main logic
+case "$1" in
+    on|enable)
+        enable_debug
+        ;;
+    off|disable)
+        disable_debug
+        ;;
+    status|check)
+        show_status
+        ;;
+    fix)
+        fix_claude
+        ;;
+    network)
+        if [ -x /usr/local/bin/vibeos-network-setup ]; then
+            /usr/local/bin/vibeos-network-setup
+        else
+            echo "Network setup script not found"
+        fi
+        ;;
+    *)
+        echo "VibeOS Debug Tool"
+        echo ""
+        echo "Usage: vibeos-debug [command]"
+        echo ""
+        echo "Commands:"
+        echo "  status, check    Show debug status and Claude Code diagnostics"
+        echo "  on, enable       Enable debug mode"
+        echo "  off, disable     Disable debug mode"
+        echo "  fix              Try to fix Claude Code installation and network"
+        echo "  network          Setup network connectivity"
+        echo ""
+        echo "Current status:"
+        show_status
+        ;;
+esac
