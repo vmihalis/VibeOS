@@ -209,6 +209,7 @@ chmod 755 /usr/local/bin/vibeos-ai-selector 2>/dev/null || true
 chmod 755 /usr/local/bin/test-vibesh 2>/dev/null || true
 chmod 755 /usr/local/bin/vibeos-network-setup 2>/dev/null || true
 chmod 755 /usr/local/bin/vibeos-debug 2>/dev/null || true
+chmod 755 /usr/local/bin/vibeos-browser 2>/dev/null || true
 
 # Ensure Python modules have correct permissions
 chmod -R 755 /usr/lib/vibeos/shell/ 2>/dev/null || true

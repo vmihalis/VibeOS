@@ -44,3 +44,26 @@ dhcpcd
 iwd
 nss-mdns
 openresolv
+
+# GUI support (minimal X11)
+xorg-server
+xorg-xinit
+xterm
+mesa
+xf86-video-vesa
+xf86-video-intel
+xf86-video-amdgpu
+xf86-input-libinput
+
+# Window manager (minimal)
+openbox
+
+# Browser for authentication and web tasks
+firefox
+
+# Supporting libraries
+ttf-liberation
+ttf-dejavu
+xdg-utils
+gtk3
+dbus

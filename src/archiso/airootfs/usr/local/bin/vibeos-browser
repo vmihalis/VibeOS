@@ -1,0 +1,76 @@
+#!/bin/bash
+# VibeOS Browser Launcher
+# Launches Firefox in minimal X session for authentication and web tasks
+
+set -e
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Function to check if X is running
+is_x_running() {
+    if [ -n "$DISPLAY" ]; then
+        return 0
+    fi
+    return 1
+}
+
+# Function to launch browser
+launch_browser() {
+    local url="$1"
+
+    if is_x_running; then
+        echo -e "${GREEN}X11 is already running, launching Firefox...${NC}"
+        firefox "$url" &
+    else
+        echo -e "${YELLOW}Starting X11 with Firefox...${NC}"
+        echo "Press Ctrl+C to return to terminal when done."
+        echo ""
+
+        # Start X with Firefox
+        if [ -n "$url" ]; then
+            startx firefox "$url" -- :1
+        else
+            startx firefox -- :1
+        fi
+    fi
+}
+
+# Main logic
+case "$1" in
+    auth|claude)
+        echo -e "${GREEN}Opening browser for Claude Code authentication...${NC}"
+        echo "After authenticating, copy the code and paste it back in the terminal."
+        launch_browser ""
+        ;;
+    mail|email)
+        echo -e "${GREEN}Opening browser for email...${NC}"
+        launch_browser "https://mail.google.com"
+        ;;
+    "")
+        echo -e "${GREEN}Launching Firefox...${NC}"
+        launch_browser ""
+        ;;
+    http*|https*)
+        echo -e "${GREEN}Opening URL: $1${NC}"
+        launch_browser "$1"
+        ;;
+    *)
+        echo "VibeOS Browser Launcher"
+        echo ""
+        echo "Usage: vibeos-browser [command|url]"
+        echo ""
+        echo "Commands:"
+        echo "  auth, claude    Open browser for Claude Code authentication"
+        echo "  mail, email     Open browser for email"
+        echo "  [url]           Open specific URL"
+        echo "  (no args)       Launch Firefox"
+        echo ""
+        echo "Examples:"
+        echo "  vibeos-browser auth"
+        echo "  vibeos-browser https://github.com"
+        ;;
+esac

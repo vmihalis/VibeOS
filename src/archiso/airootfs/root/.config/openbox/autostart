@@ -1,0 +1,8 @@
+# VibeOS Openbox autostart
+# Minimal configuration for when GUI is needed
+
+# Set background to black (no wallpaper needed)
+xsetroot -solid "#000000" &
+
+# If Firefox was requested, it will be started by xinit
+# This file is just for any background services if needed
