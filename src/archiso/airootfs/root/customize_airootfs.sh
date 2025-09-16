@@ -218,6 +218,37 @@ find /usr/lib/vibeos/shell/ -name "*.py" -exec chmod 644 {} \; 2>/dev/null || tr
 # Create a marker file to indicate Claude Code was pre-installed
 touch /etc/vibeos/.claude_code_preinstalled
 
+# Install Claude Code Python SDK
+echo ""
+echo "============================================"
+echo "Installing Claude Code Python SDK"
+echo "============================================"
+echo ""
+
+# Check if pip is available
+if command -v pip &> /dev/null; then
+    echo "✅ pip found, installing claude-code-sdk..."
+
+    # Install the SDK with explicit dependencies
+    if pip install claude-code-sdk anyio; then
+        echo "✅ Claude Code SDK installed successfully!"
+
+        # Verify installation
+        if python -c "import claude_code_sdk; print('SDK import successful')" 2>/dev/null; then
+            echo "✅ SDK import test passed"
+            touch /etc/vibeos/.claude_code_sdk_installed
+        else
+            echo "⚠️  SDK installed but import failed"
+        fi
+    else
+        echo "❌ Failed to install Claude Code SDK"
+        echo "Users will need to install manually: pip install claude-code-sdk"
+    fi
+else
+    echo "⚠️  pip not found, cannot install Claude Code SDK"
+    echo "Make sure python-pip is in packages.x86_64"
+fi
+
 echo ""
 echo "================================================"
 echo "    Enabling Network Services"

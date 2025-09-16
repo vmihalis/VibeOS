@@ -27,6 +27,9 @@ which
 
 # Programming languages and tools
 python
+python-pip
+python-setuptools
+python-wheel
 nodejs
 npm
 

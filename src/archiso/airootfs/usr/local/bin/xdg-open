@@ -1,0 +1,62 @@
+#!/bin/bash
+# VibeOS xdg-open wrapper
+# Handles opening URLs and files with appropriate applications
+
+# Check what we're trying to open
+TARGET="$1"
+
+# Function to ensure X and browser are available
+open_in_browser() {
+    local url="$1"
+
+    # Check if X is running, if not start it
+    if [ -z "$DISPLAY" ]; then
+        # Start X in background
+        Xorg :0 &> /dev/null &
+        sleep 1
+        DISPLAY=:0 openbox &> /dev/null &
+        export DISPLAY=:0
+    fi
+
+    # Try to use Firefox
+    if command -v firefox &> /dev/null; then
+        DISPLAY="${DISPLAY:-:0}" firefox "$url" &> /dev/null &
+        return 0
+    fi
+
+    # Fallback: show URL for manual copying
+    echo "Please open this URL in a browser:"
+    echo "$url"
+    return 1
+}
+
+# Main logic
+case "$TARGET" in
+    http://*|https://*)
+        # It's a URL - open in browser
+        open_in_browser "$TARGET"
+        ;;
+    *.html|*.htm)
+        # HTML file - open in browser
+        open_in_browser "file://$TARGET"
+        ;;
+    *.txt|*.md|*.log)
+        # Text file - open in terminal editor
+        if command -v nano &> /dev/null; then
+            nano "$TARGET"
+        elif command -v vi &> /dev/null; then
+            vi "$TARGET"
+        else
+            cat "$TARGET"
+        fi
+        ;;
+    *)
+        # Try to open with Firefox as fallback
+        if [ -f "$TARGET" ]; then
+            open_in_browser "file://$TARGET"
+        else
+            echo "Don't know how to open: $TARGET"
+            exit 1
+        fi
+        ;;
+esac

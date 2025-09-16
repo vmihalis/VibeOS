@@ -17,11 +17,20 @@ if '/usr/lib/vibeos' not in sys.path:
     sys.path.insert(0, '/usr/lib/vibeos')
 
 try:
-    # Try relative imports first (when run as a module)
-    from .claude_code_parser import ClaudeCodeParser
+    # Try SDK parser first (new implementation)
+    from .claude_sdk_parser import ClaudeSDKParser as ClaudeParser
+    print("[VIBEOS] Using Claude SDK Parser (new)")
 except ImportError:
-    # Fall back to absolute imports (when run directly)
-    from claude_code_parser import ClaudeCodeParser
+    try:
+        # Fall back to old subprocess parser
+        from .claude_code_parser import ClaudeCodeParser as ClaudeParser
+        print("[VIBEOS] Using legacy subprocess parser")
+    except ImportError:
+        # Last resort - try absolute imports
+        try:
+            from claude_sdk_parser import ClaudeSDKParser as ClaudeParser
+        except ImportError:
+            from claude_code_parser import ClaudeCodeParser as ClaudeParser
 
 
 class VibeShell:
@@ -38,7 +47,7 @@ class VibeShell:
             print(f"[DEBUG] PATH: {os.environ.get('PATH', 'not set')}")
 
         # Claude Code is mandatory - no fallback
-        self.parser = ClaudeCodeParser()
+        self.parser = ClaudeParser()
 
         if not self.parser.claude_available:
             print("\n" + "="*60)
@@ -172,9 +181,22 @@ class VibeShell:
         # Claude Code processes everything
         intent, params = self.parser.parse(user_input, context_data)
 
-        # Handle Claude Code specific intents
-        if intent == "execute_command":
-            # Claude Code generated a direct command to execute
+        # Handle SDK responses
+        if intent == "sdk_response":
+            # SDK provided a direct response - this IS the conversation
+            response = params.get('response', '')
+            if response:
+                print(f"\n🤖 Claude: {response}")
+
+                # Check if response cached
+                if params.get('from_cache'):
+                    print("   (from cache)")
+            else:
+                print("\n❌ Empty response from Claude")
+            return True
+
+        # Handle legacy command execution (for backward compatibility)
+        elif intent == "execute_command":
             try:
                 print(f"💭 Executing: {params['command']}")
                 result = subprocess.run(
@@ -193,18 +215,42 @@ class VibeShell:
                 print(f"Error executing command: {e}")
                 return True
 
-        elif intent in ["claude_not_available", "claude_required", "claude_error"]:
-            print(f"\n❌ {params.get('error', 'Claude Code is required')}")
-            if not self.parser.claude_available:
-                print("\nInstall Claude Code: npm install -g @anthropic-ai/claude-code")
+        # Handle various error states
+        elif intent in ["sdk_not_available", "cli_not_available", "cli_not_found"]:
+            print(f"\n❌ {params.get('error', 'Claude Code SDK/CLI is required')}")
+            help_text = params.get('help')
+            if help_text:
+                print(f"\n💡 {help_text}")
+            elif not self.parser.claude_available:
+                print("\nInstall Claude Code SDK: pip install claude-code-sdk")
+                print("Install Claude Code CLI: npm install -g @anthropic-ai/claude-code")
                 print("Then authenticate: claude-code auth")
             return True
 
+        elif intent in ["connection_error", "process_error", "json_error", "sdk_error"]:
+            print(f"\n❌ Claude Code Error: {params.get('error', 'Unknown error')}")
+            if 'exit_code' in params:
+                print(f"Exit code: {params['exit_code']}")
+
+            # Provide helpful suggestions based on error type
+            if intent == "connection_error":
+                print("\n💡 Try: claude-code auth")
+            elif intent == "process_error":
+                print("\n💡 Check if Claude Code CLI is properly installed")
+            return True
+
+        elif intent == "empty_response":
+            print(f"\n❌ {params.get('error', 'Claude returned an empty response')}")
+            print("💡 Try rephrasing your request or check your internet connection")
+            return True
+
         else:
-            # Any other response from Claude Code parser
-            print(f"\n❌ Unexpected response: {intent}")
+            # Unexpected response
+            print(f"\n❌ Unexpected response type: {intent}")
             if params.get('error'):
                 print(f"Error: {params['error']}")
+            if self.debug_mode:
+                print(f"[DEBUG] Full params: {params}")
 
         return True
     

@@ -116,6 +116,11 @@ class AIAssistantSelector:
         """Check if Claude Code was pre-installed during ISO build"""
         marker_file = Path("/etc/vibeos/.claude_code_preinstalled")
         return marker_file.exists()
+
+    def is_claude_code_sdk_installed(self) -> bool:
+        """Check if Claude Code SDK was pre-installed during ISO build"""
+        marker_file = Path("/etc/vibeos/.claude_code_sdk_installed")
+        return marker_file.exists()
     
     def install_claude_code(self) -> bool:
         """Install Claude Code using npm"""
@@ -153,7 +158,9 @@ class AIAssistantSelector:
         for key, assistant in self.assistants.items():
             status_icon = "✅" if assistant["status"] == "available" else "🔜"
             if assistant["status"] == "available" and assistant["command"]:
-                if self.is_claude_code_preinstalled():
+                if self.is_claude_code_preinstalled() and self.is_claude_code_sdk_installed():
+                    installed = " [Pre-installed & SDK Integrated]"
+                elif self.is_claude_code_preinstalled():
                     installed = " [Pre-installed & Integrated]"
                 elif self.is_claude_code_installed():
                     installed = " [Installed & Integrated]"
@@ -164,7 +171,10 @@ class AIAssistantSelector:
             print(f"  {key}. {assistant['name']} {status_icon}{installed}")
             print(f"     {assistant['description']}")
             if key == "1" and self.is_claude_code_installed():
-                print("     💡 Powers natural language understanding in vibesh shell")
+                if self.is_claude_code_sdk_installed():
+                    print("     💡 Enhanced with Claude Code SDK for deeper integration")
+                else:
+                    print("     💡 Powers natural language understanding in vibesh shell")
             print("")
 
         print("  4. Continue with vibesh (pattern matching mode)")
@@ -242,10 +252,18 @@ class AIAssistantSelector:
                     self.save_config(config)
 
                     print("\n✅ Claude Code selected!")
-                    print("🤖 Natural language understanding is now enabled in vibesh.")
-                    print("\nYou can now:")
-                    print("  • Use vibesh with full natural language understanding")
-                    print("  • Launch Claude Code directly by typing 'claude-code'")
+                    if self.is_claude_code_sdk_installed():
+                        print("🤖 Advanced Claude Code SDK integration enabled in vibesh.")
+                        print("\nYou can now:")
+                        print("  • Use vibesh with deep Claude Code SDK integration")
+                        print("  • Experience enhanced natural language understanding")
+                        print("  • Benefit from conversation context and streaming responses")
+                        print("  • Launch Claude Code directly by typing 'claude-code'")
+                    else:
+                        print("🤖 Natural language understanding is now enabled in vibesh.")
+                        print("\nYou can now:")
+                        print("  • Use vibesh with full natural language understanding")
+                        print("  • Launch Claude Code directly by typing 'claude-code'")
                     print("\nStarting vibesh with Claude Code integration...")
                     return "claude-code-integrated"
                 
