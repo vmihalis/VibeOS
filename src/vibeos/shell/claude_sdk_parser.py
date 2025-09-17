@@ -9,6 +9,7 @@ import sys
 import json
 import asyncio
 import tempfile
+import logging
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional, List, AsyncGenerator
 import time
@@ -34,7 +35,6 @@ class ClaudeSDKParser:
         if self.debug_mode:
             print("[DEBUG] Initializing Claude SDK Parser...")
             print(f"[DEBUG] SDK Available: {SDK_AVAILABLE}")
-            print(f"[DEBUG] Config loaded: {self.config.get('debug', {})}")
 
         # SDK requires both the Python module AND the CLI to be available
         self.sdk_available = SDK_AVAILABLE and self._check_claude_code()
@@ -61,7 +61,8 @@ class ClaudeSDKParser:
                 'enabled': True,
                 'fallback_to_regex': False,
                 'command_timeout': 30,
-                'max_turns': 3
+                'max_turns': 3,
+                'cache_commands': True
             }
         }
 
@@ -76,7 +77,6 @@ class ClaudeSDKParser:
 
         # Fall back to config file
         return self.config.get('debug', {}).get('enabled', True)
-
 
     def _check_claude_code(self) -> bool:
         """Check if Claude Code CLI is available for the SDK to use"""
@@ -255,106 +255,72 @@ Working directory will be provided with each command."""
                 print(f"[DEBUG] Error running async query: {e}")
             return 'sdk_error', {'error': f'Failed to execute SDK query: {str(e)}'}
 
+    def _sanitize_input(self, text: str) -> str:
+        """Simple input sanitization"""
+        if not text or not isinstance(text, str):
+            return ""
+
+        # Basic cleanup
+        text = text.strip()
+        if len(text) > 5000:  # Reasonable limit
+            text = text[:5000]
+
+        return text
+
     def parse(self, input_text: str, context: Dict[str, Any] = {}) -> Tuple[str, Dict[str, Any]]:
-        """
-        Main parse method that uses Claude Code SDK
+        """Main parse method that uses Claude Code SDK"""
+        # Basic input validation
+        if not input_text or not isinstance(input_text, str):
+            return 'input_error', {'error': 'Input must be a non-empty string'}
 
-        Returns:
-            Tuple of (intent, parameters)
-        """
-        # Check SDK availability and provide specific guidance
-        if not SDK_AVAILABLE:
-            return 'sdk_not_available', {
-                'error': 'Claude Code SDK Python module is not installed',
-                'input': input_text,
-                'help': 'Install with: pip install claude-code-sdk anyio'
-            }
+        sanitized_input = self._sanitize_input(input_text)
+        if not sanitized_input:
+            return 'input_error', {'error': 'Empty input'}
 
-        if not self._check_claude_code():
-            return 'cli_not_available', {
-                'error': 'Claude Code CLI is not installed or not authenticated',
-                'input': input_text,
-                'help': """To use Claude Code SDK, you need the Claude Code CLI:
+        # Simple context validation
+        if not isinstance(context, dict):
+            context = {}
+        if 'cwd' not in context:
+            context['cwd'] = os.getcwd()
 
-1. Install Claude Code CLI:
-   npm install -g @anthropic-ai/claude-code
-
-2. Authenticate with your Claude.ai account:
-   claude-code auth
-
-3. This will open a browser for authentication
-
-Note: The SDK uses the CLI for communication with Claude"""
-            }
-
+        # Check SDK availability
         if not self.sdk_available:
             return 'sdk_not_available', {
-                'error': 'Claude Code SDK is not properly configured',
-                'input': input_text,
-                'help': 'Check that both the SDK and CLI are installed'
+                'error': 'Claude Code is not installed or not authenticated',
+                'help': 'Run: vibeos-install-claude'
             }
 
-        return self.parse_with_sdk(input_text, context)
+        return self.parse_with_sdk(sanitized_input, context)
 
     def get_suggestions(self, partial_input: str) -> List[str]:
-        """Get command suggestions based on partial input and history"""
-        suggestions = []
+        """Get command suggestions based on partial input"""
+        if not partial_input:
+            return []
+
         partial_lower = partial_input.lower()
+        suggestions = []
 
-        # Context-aware suggestions based on common VibeOS tasks
+        # Simple pattern matching
         if partial_lower.startswith('create'):
-            suggestions.extend([
-                'create a new Python project with testing framework',
-                'create a React app with authentication',
-                'create a REST API with database integration',
-                'create a machine learning environment'
-            ])
+            suggestions = ['create a new Python project', 'create a React app']
         elif partial_lower.startswith('install'):
-            suggestions.extend([
-                'install everything I need for web development',
-                'install machine learning libraries',
-                'install development tools and configure them',
-                'install and configure Docker'
-            ])
-        elif partial_lower.startswith('set'):
-            suggestions.extend([
-                'set up a complete development environment for Python',
-                'set up CI/CD pipeline for my project',
-                'set up database and connect it to my app',
-                'set up testing and code quality tools'
-            ])
+            suggestions = ['install development tools', 'install claude']
         elif partial_lower.startswith('fix'):
-            suggestions.extend([
-                'fix all the errors in my code',
-                'fix import and dependency issues',
-                'fix my Git repository configuration',
-                'fix performance issues in my application'
-            ])
-        elif partial_lower.startswith('deploy'):
-            suggestions.extend([
-                'deploy my application to production',
-                'deploy using Docker containers',
-                'deploy to cloud infrastructure',
-                'deploy with automatic scaling'
-            ])
+            suggestions = ['fix errors in my code', 'fix dependencies']
 
-        # Add suggestions from conversation history
-        for item in self.conversation_history[-5:]:
-            if partial_lower in item['input'].lower():
-                suggestions.append(item['input'])
+        return suggestions[:3]
 
-        return suggestions[:5]
-
-    def clear_context(self):
-        """Clear conversation history and cache"""
-        self.conversation_history = []
-        if self.cache is not None:
+    def clear_context(self) -> None:
+        """Clear conversation history and cache."""
+        self.conversation_history.clear()
+        if self.cache:
             self.cache.clear()
+
         if self.context_file.exists():
             try:
                 self.context_file.unlink()
-            except:
-                pass
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not remove context file: {e}")
 
     @property
     def claude_available(self) -> bool:

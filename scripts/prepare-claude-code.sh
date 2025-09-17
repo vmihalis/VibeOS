@@ -1,11 +1,11 @@
 #!/bin/bash
 # Pre-download Claude Code package for offline installation
-# This is a fallback in case network isn't available during ISO build
+# This creates a local .tgz file that can be used if network fails during build
 
 set -e
 
 echo "================================================"
-echo "    Preparing Claude Code for VibeOS"
+echo "    Pre-downloading Claude Code Package"
 echo "================================================"
 echo ""
 
@@ -13,39 +13,45 @@ echo ""
 if ! command -v npm &> /dev/null; then
     echo "⚠️  npm not found on host system"
     echo "Cannot pre-download Claude Code package"
-    echo "Build will attempt online installation"
     exit 0
 fi
 
-# Create temporary directory
+# Get project root directory first (before changing directories)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+TARGET_DIR="$PROJECT_ROOT/src/archiso/airootfs/root"
+
+# Create temp directory for download
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
 echo "Downloading Claude Code package..."
-# Use npm pack to download the package as a tarball
-if npm pack @anthropic-ai/claude-code; then
+if npm pack @anthropic-ai/claude-code 2>/dev/null; then
     PACKAGE_FILE=$(ls anthropic-ai-claude-code-*.tgz 2>/dev/null | head -1)
-    if [ -f "$PACKAGE_FILE" ]; then
-        echo "✅ Downloaded: $PACKAGE_FILE"
 
-        # Copy to airootfs for build to use
-        TARGET_DIR="$(dirname "$0")/../src/archiso/airootfs/root"
+    if [ -f "$PACKAGE_FILE" ]; then
+        # Create target directory and copy package
         mkdir -p "$TARGET_DIR"
         cp "$PACKAGE_FILE" "$TARGET_DIR/claude-code-package.tgz"
-        echo "✅ Package copied to build directory"
+
+        echo "✅ Claude Code package saved for offline installation"
+        echo "   Location: src/archiso/airootfs/root/claude-code-package.tgz"
+        echo "   Size: $(du -h "$PACKAGE_FILE" | cut -f1)"
         echo ""
-        echo "This package will be used as fallback if online install fails"
+        echo "This will be used if online installation fails during ISO build"
     else
-        echo "⚠️  Could not find downloaded package"
+        echo "⚠️  Package download succeeded but file not found"
     fi
 else
     echo "⚠️  Failed to download Claude Code package"
     echo "Build will attempt online installation"
 fi
 
-# Cleanup
+# Cleanup - use absolute path
 cd /
 rm -rf "$TEMP_DIR"
 
 echo ""
-echo "Preparation complete"
+echo "================================================"
+echo "    Package Preparation Complete"
+echo "================================================"

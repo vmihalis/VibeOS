@@ -1,0 +1,61 @@
+#!/bin/bash
+# VibeOS Claude Code Installer
+
+set -e
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+echo "VibeOS Claude Code Installer"
+echo "============================"
+
+# Check if already installed
+if command -v claude-code &> /dev/null; then
+    echo -e "${GREEN}✅ Claude Code is already installed!${NC}"
+    exit 0
+fi
+
+# Check network
+if ! ping -c 1 -W 2 8.8.8.8 &> /dev/null; then
+    echo -e "${RED}❌ No network connection${NC}"
+    echo "Please connect to the internet and try again."
+    exit 1
+fi
+
+# Check npm
+if ! command -v npm &> /dev/null; then
+    echo -e "${RED}❌ npm is not installed${NC}"
+    exit 1
+fi
+
+echo "Installing Claude Code..."
+mkdir -p /var/log/vibeos
+
+if npm install -g @anthropic-ai/claude-code 2>&1 | tee /var/log/vibeos/claude-install.log; then
+    echo -e "${GREEN}✅ Claude Code installed successfully!${NC}"
+
+    # Mark as installed
+    mkdir -p /etc/vibeos
+    echo "SUCCESS" > /etc/vibeos/.claude_install_status
+    date > /etc/vibeos/.claude_install_date
+
+    # Create wrapper if needed
+    if ! command -v claude-code &> /dev/null; then
+        cat > /usr/bin/claude-code << 'EOF'
+#!/bin/bash
+exec node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js "$@"
+EOF
+        chmod +x /usr/bin/claude-code
+    fi
+
+    echo ""
+    echo "Next steps:"
+    echo "1. Run 'claude-code auth' to authenticate"
+    echo "2. Return to vibesh to use natural language commands"
+else
+    echo -e "${RED}❌ Installation failed${NC}"
+    echo "Check /var/log/vibeos/claude-install.log for details"
+    exit 1
+fi

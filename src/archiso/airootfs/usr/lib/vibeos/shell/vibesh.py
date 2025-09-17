@@ -9,6 +9,9 @@ import sys
 import subprocess
 import readline
 import json
+import logging
+import shlex
+import re
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -46,18 +49,44 @@ class VibeShell:
             print(f"[DEBUG] Working directory: {os.getcwd()}")
             print(f"[DEBUG] PATH: {os.environ.get('PATH', 'not set')}")
 
-        # Claude Code is mandatory - no fallback
-        self.parser = ClaudeParser()
+        # Claude Code is mandatory - but we'll offer to install it
+        try:
+            self.parser = ClaudeParser()
+        except Exception as e:
+            if self.debug_mode:
+                print(f"[DEBUG] Failed to initialize parser: {e}")
+            self.parser = None
 
-        if not self.parser.claude_available:
+        if not self.parser or not self.parser.claude_available:
             print("\n" + "="*60)
             print("⚠️  Claude Code is REQUIRED to use VibeOS")
             print("="*60)
             print("\nVibeOS cannot function without Claude Code.")
-            print("Please install and authenticate Claude Code:")
-            print("\n  1. Install: npm install -g @anthropic-ai/claude-code")
-            print("  2. Authenticate: claude-code auth")
+            print("Claude Code needs to be installed.")
             print("\n" + "="*60)
+
+            # Offer automatic installation
+            print("\nWould you like to install Claude Code now?")
+            print("This will take a few minutes and requires internet connection.")
+            response = input("\nInstall Claude Code? (y/n): ").strip().lower()
+
+            if response == 'y':
+                print("\nInstalling Claude Code...")
+                result = subprocess.run(['/usr/local/bin/vibeos-install-claude'],
+                                      capture_output=False, text=True)
+                if result.returncode == 0:
+                    print("\n✅ Installation successful! Please restart vibesh.")
+                    print("Run: exit")
+                    print("Then: vibesh")
+                    sys.exit(0)
+                else:
+                    print("\n❌ Installation failed. Please run manually:")
+                    print("  vibeos-install-claude")
+            else:
+                print("\nYou can install Claude Code manually:")
+                print("  1. Run: vibeos-install-claude")
+                print("  2. Or: npm install -g @anthropic-ai/claude-code")
+                print("  3. Then: claude-code auth")
 
             if self.debug_mode:
                 print("\n[DEBUG] Troubleshooting:")
@@ -76,7 +105,74 @@ class VibeShell:
 
         # Initialize readline for better input handling
         self._setup_readline()
-        
+
+    def _sanitize_user_input(self, user_input: str) -> Optional[str]:
+        """Sanitize user input to prevent injection attacks"""
+        if not user_input or not isinstance(user_input, str):
+            return None
+
+        # Basic sanitization
+        sanitized = user_input.strip()
+
+        # Length check (reasonable limit for natural language commands)
+        if len(sanitized) > 5000:
+            logging.warning("User input too long, truncating")
+            sanitized = sanitized[:5000]
+
+        # Remove null bytes and other dangerous characters
+        sanitized = sanitized.replace('\x00', '').replace('\r', '')
+
+        # Check for obvious injection attempts
+        dangerous_patterns = [
+            r';\s*rm\s+-rf',  # Dangerous rm commands
+            r';\s*sudo\s+rm',  # Sudo rm commands
+            r'>\s*/dev/sd[a-z]',  # Writing to disk devices
+            r'\$\(.*\)',  # Command substitution
+            r'`.*`',  # Backtick command substitution
+        ]
+
+        for pattern in dangerous_patterns:
+            if re.search(pattern, sanitized, re.IGNORECASE):
+                logging.warning(f"Dangerous pattern detected in input: {pattern}")
+                return None
+
+        return sanitized if sanitized else None
+
+    def _safe_subprocess_run(self, command: List[str], timeout: int = 30, **kwargs) -> subprocess.CompletedProcess:
+        """Safely execute subprocess with timeout and error handling"""
+        try:
+            # Validate command
+            if not command or not all(isinstance(arg, str) for arg in command):
+                raise ValueError("Invalid command arguments")
+
+            # Set safe defaults
+            safe_kwargs = {
+                'timeout': timeout,
+                'check': False,
+                'capture_output': kwargs.get('capture_output', True),
+                'text': kwargs.get('text', True)
+            }
+
+            if self.debug_mode:
+                logging.debug(f"Executing command: {command}")
+
+            result = subprocess.run(command, **safe_kwargs)
+
+            if self.debug_mode:
+                logging.debug(f"Command completed with exit code: {result.returncode}")
+
+            return result
+
+        except subprocess.TimeoutExpired:
+            logging.error(f"Command timed out after {timeout} seconds: {command}")
+            raise
+        except (OSError, subprocess.SubprocessError) as e:
+            logging.error(f"Process error executing {command}: {e}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error executing {command}: {e}")
+            raise
+
     def _setup_readline(self):
         """Configure readline for command history and tab completion"""
         readline.parse_and_bind('tab: complete')
@@ -113,7 +209,7 @@ class VibeShell:
         print("    VibeOS Natural Language Shell v0.2.0")
         print("="*60)
 
-        if self.parser.claude_available:
+        if self.parser and self.parser.claude_available:
             print("\n🤖 Claude Code Active - Speak naturally, I understand everything!")
             print("\nExamples of what you can say:")
             print("  • 'set up a complete React project with authentication'")
@@ -151,26 +247,53 @@ class VibeShell:
             if result.returncode == 0:
                 branch = result.stdout.strip()
                 git_info = f" ({branch})"
-        except:
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+            # Git is not available or not in a git repository - this is normal
+            if self.debug_mode:
+                logging.debug(f"Git branch detection failed: {e}")
             pass
         
         return f"\n[{cwd}{git_info}]\n→ "
     
     def process_input(self, user_input: str) -> bool:
         """Process user input and execute appropriate commands"""
+        # Input validation and sanitization
+        sanitized_input = self._sanitize_user_input(user_input)
+        if not sanitized_input:
+            print("⚠️  Invalid or potentially dangerous input detected. Please try again.")
+            return True
 
-        # Handle special commands
-        if user_input.lower() in ['exit', 'quit', 'bye']:
+        # Handle special commands (case-insensitive)
+        lower_input = sanitized_input.lower()
+
+        if lower_input in ['exit', 'quit', 'bye']:
             print("Goodbye! Stay in the flow.")
             return False
 
-        if user_input.lower() in ['help', '?']:
+        if lower_input in ['help', '?']:
             self.show_help()
             return True
 
         # Handle AI assistant switching
-        if any(phrase in user_input.lower() for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
+        if any(phrase in lower_input for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
             self.launch_ai_assistant()
+            return True
+
+        # Check if Claude Code is available
+        if not self.parser or not self.parser.claude_available:
+            # Special command to install Claude Code
+            if 'install claude' in user_input.lower():
+                print("\nInstalling Claude Code...")
+                result = subprocess.run(['/usr/local/bin/vibeos-install-claude'],
+                                      capture_output=False, text=True)
+                if result.returncode == 0:
+                    print("\n✅ Installation successful! Please restart vibesh.")
+                    return False
+                else:
+                    print("\n❌ Installation failed. Check your network connection.")
+            else:
+                print("⚠️  Claude Code is not installed. Commands cannot be processed.")
+                print("Type 'install claude' to install it now.")
             return True
 
         # Parse natural language input with Claude Code
@@ -178,8 +301,8 @@ class VibeShell:
             'cwd': os.getcwd()
         }
 
-        # Claude Code processes everything
-        intent, params = self.parser.parse(user_input, context_data)
+        # Claude Code processes everything (using sanitized input)
+        intent, params = self.parser.parse(sanitized_input, context_data)
 
         # Handle SDK responses
         if intent == "sdk_response":
@@ -198,21 +321,39 @@ class VibeShell:
         # Handle legacy command execution (for backward compatibility)
         elif intent == "execute_command":
             try:
-                print(f"💭 Executing: {params['command']}")
+                command = params.get('command', '')
+                if not command:
+                    print("⚠️  No command provided")
+                    return True
+
+                print(f"💭 Executing: {command}")
+
+                # Execute command with proper safety measures
+                # Note: This is still using shell=True for compatibility but with sanitized input
                 result = subprocess.run(
-                    params['command'],
+                    command,
                     shell=True,
                     capture_output=True,
                     text=True,
+                    timeout=60,  # 60 second timeout
                     cwd=os.getcwd()
                 )
+
                 if result.stdout:
                     print(result.stdout)
                 if result.stderr and result.returncode != 0:
                     print(f"⚠️  {result.stderr}")
+
+                return True
+
+            except subprocess.TimeoutExpired:
+                print("⚠️  Command timed out after 60 seconds")
+                return True
+            except (OSError, subprocess.SubprocessError) as e:
+                print(f"⚠️  Process error: {e}")
                 return True
             except Exception as e:
-                print(f"Error executing command: {e}")
+                print(f"⚠️  Error executing command: {e}")
                 return True
 
         # Handle various error states

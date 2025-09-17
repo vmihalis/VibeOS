@@ -8,17 +8,19 @@
   "claude_code": {
     "enabled": true,
     "mode": "subscription",
-    "command_timeout": 10,
+    "command_timeout": 30,
     "max_retries": 3,
     "cache_commands": true,
     "cache_ttl": 3600,
-    "fallback_to_regex": true,
+    "fallback_to_regex": false,
     "verbose": true,
     "features": {
       "multi_step_commands": true,
       "context_awareness": true,
       "auto_correction": true,
-      "learning_mode": false
+      "learning_mode": false,
+      "input_validation": true,
+      "secure_execution": true
     }
   },
   "prompts": {
@@ -32,5 +34,19 @@
     "npm": true,
     "python": true,
     "systemd": true
+  },
+  "security": {
+    "input_validation": true,
+    "command_sanitization": true,
+    "dangerous_command_blocking": true,
+    "max_input_length": 5000,
+    "timeout_enforcement": true,
+    "resource_limits": true
+  },
+  "error_handling": {
+    "retry_failed_commands": true,
+    "graceful_degradation": true,
+    "detailed_error_messages": true,
+    "log_all_errors": true
   }
 }

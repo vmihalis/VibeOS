@@ -87,11 +87,21 @@ echo ""
 
 # Method 1: Try standard npm install with network
 echo "[BUILD] Method 1: Attempting npm install with network access..."
-if npm install -g @anthropic-ai/claude-code 2>&1 | tee /tmp/npm-install.log; then
+echo "[BUILD] Running: npm install -g @anthropic-ai/claude-code"
+echo "[BUILD] This may take several minutes..."
+
+# Capture both stdout and stderr, save to file for debugging
+if npm install -g @anthropic-ai/claude-code --verbose 2>&1 | tee /tmp/npm-install.log; then
     echo "✅ Claude Code installed successfully via npm!"
     echo "[BUILD DEBUG] Installation location: $(npm list -g @anthropic-ai/claude-code 2>/dev/null | head -2)"
+
+    # Save success marker
+    echo "SUCCESS" > /etc/vibeos/.claude_install_status
+    cp /tmp/npm-install.log /etc/vibeos/claude_install.log
 else
     echo "⚠️  Standard npm install failed, trying alternative methods..."
+    echo "[BUILD DEBUG] Error output (last 20 lines):"
+    tail -20 /tmp/npm-install.log | sed 's/^/[BUILD DEBUG]   /'
 
     # Method 2: Try with different registry settings
     echo "Configuring npm for better connectivity..."
@@ -114,15 +124,17 @@ else
         else
             echo ""
             echo "============================================"
-            echo "⚠️  CRITICAL WARNING: Claude Code NOT installed"
+            echo "⚠️  CRITICAL WARNING: Claude Code NOT installed during build"
             echo "============================================"
             echo "VibeOS REQUIRES Claude Code to function!"
-            echo "The OS will boot but will NOT accept ANY commands"
-            echo "until Claude Code is installed and authenticated."
             echo ""
-            echo "Users must run after boot:"
-            echo "  npm install -g @anthropic-ai/claude-code"
-            echo "  claude-code auth"
+            echo "Creating first-boot installation script..."
+
+            # Save npm install log for debugging
+            cp /tmp/npm-install.log /etc/vibeos/build_npm_install.log 2>/dev/null || true
+            echo "FAILED" > /etc/vibeos/.claude_install_status
+
+            echo "The system will attempt to install Claude Code on first boot."
             echo "============================================"
             echo ""
         fi

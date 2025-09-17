@@ -8,6 +8,8 @@ import os
 import sys
 import subprocess
 import json
+import logging
+import re
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -41,7 +43,47 @@ class AIAssistantSelector:
                 "description": "OpenAI Codex powered assistant - Coming Soon"
             }
         }
-        
+
+    def _validate_config_data(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate configuration data structure"""
+        if not isinstance(config, dict):
+            return {}
+
+        validated = {}
+
+        # Validate string values
+        for key in ['selected_assistant']:
+            if key in config and isinstance(config[key], str):
+                # Sanitize string values
+                sanitized = re.sub(r'[^a-zA-Z0-9_-]', '', config[key])
+                if sanitized:
+                    validated[key] = sanitized
+
+        # Validate boolean values
+        for key in ['auto_launch', 'use_claude_parser']:
+            if key in config and isinstance(config[key], bool):
+                validated[key] = config[key]
+
+        return validated
+
+    def _validate_user_input(self, user_input: str) -> Optional[str]:
+        """Validate and sanitize user input"""
+        if not user_input or not isinstance(user_input, str):
+            return None
+
+        # Basic sanitization
+        sanitized = user_input.strip()
+
+        # Length check
+        if len(sanitized) > 100:
+            return None
+
+        # Allow only alphanumeric, spaces, and basic punctuation
+        if re.match(r'^[a-zA-Z0-9\s\.,\-_]+$', sanitized):
+            return sanitized
+
+        return None
+
     def ensure_config_dir(self):
         """Ensure configuration directory exists"""
         try:
@@ -56,16 +98,24 @@ class AIAssistantSelector:
             try:
                 with open(self.config_file, 'r') as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError, PermissionError) as e:
+                # Config file is corrupted or inaccessible - log warning and use defaults
+                logging.warning(f"Failed to load configuration from {self.config_file}: {e}")
                 pass
         return {}
     
     def save_config(self, config: Dict[str, Any]):
-        """Save configuration"""
+        """Save configuration with validation"""
+        # Validate configuration data
+        validated_config = self._validate_config_data(config)
+        if not validated_config:
+            logging.warning("Invalid configuration data, not saving")
+            return
+
         self.ensure_config_dir()
         try:
             with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=2)
+                json.dump(validated_config, f, indent=2)
         except PermissionError:
             # Try with sudo
             import tempfile
