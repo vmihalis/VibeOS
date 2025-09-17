@@ -64,9 +64,31 @@ openbox
 # Browser for authentication and web tasks
 firefox
 
+# Minimal GUI Desktop Environment (LXQt)
+lxqt-session
+lxqt-panel
+lxqt-themes
+lxqt-config
+lxqt-runner
+lxqt-powermanagement
+lxqt-notificationd
+
+# Essential GUI Applications
+pcmanfm-qt
+qterminal
+featherpad
+lximage-qt
+
+# Audio Support (for future voice interface)
+pavucontrol
+pulseaudio
+alsa-utils
+
 # Supporting libraries
 ttf-liberation
 ttf-dejavu
 xdg-utils
 gtk3
+qt5-base
+qt5-svg
 dbus

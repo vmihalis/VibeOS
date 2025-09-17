@@ -30,11 +30,11 @@ launch_browser() {
         echo "Press Ctrl+C to return to terminal when done."
         echo ""
 
-        # Start X with Firefox
+        # Start X with LXQt desktop and Firefox
         if [ -n "$url" ]; then
-            startx firefox "$url" -- :1
+            startx /usr/bin/firefox "$url" -- :1
         else
-            startx firefox -- :1
+            startx /usr/bin/firefox -- :1
         fi
     fi
 }

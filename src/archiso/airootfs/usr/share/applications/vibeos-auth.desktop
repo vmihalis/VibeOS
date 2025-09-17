@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Claude Code Authentication
+Comment=Authenticate Claude Code for VibeOS
+Exec=/usr/local/bin/vibeos-auth
+Icon=security-medium
+Terminal=true
+Categories=System;Settings;
+Keywords=claude;code;auth;authentication;vibeos;

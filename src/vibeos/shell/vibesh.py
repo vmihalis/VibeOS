@@ -202,6 +202,10 @@ class VibeShell:
             self.show_help()
             return True
 
+        # Handle GUI application commands
+        if self.handle_gui_commands(user_input):
+            return True
+
         # Handle AI assistant switching
         if any(phrase in user_input.lower() for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
             self.launch_ai_assistant()
@@ -318,12 +322,95 @@ class VibeShell:
                 print(f"[DEBUG] Full params: {params}")
 
         return True
-    
+
+    def handle_gui_commands(self, user_input: str) -> bool:
+        """Handle GUI application launching commands"""
+        user_input = user_input.lower().strip()
+
+        # File manager commands
+        if any(phrase in user_input for phrase in ['file manager', 'files', 'browse files', 'open files']):
+            return self.launch_gui_app('pcmanfm-qt', 'File Manager')
+
+        # Terminal commands
+        elif any(phrase in user_input for phrase in ['terminal', 'console', 'command line']):
+            return self.launch_gui_app('qterminal', 'Terminal')
+
+        # Text editor commands
+        elif any(phrase in user_input for phrase in ['text editor', 'editor', 'edit text', 'notepad']):
+            return self.launch_gui_app('featherpad', 'Text Editor')
+
+        # Browser commands
+        elif any(phrase in user_input for phrase in ['browser', 'firefox', 'web browser']):
+            return self.launch_gui_app('firefox', 'Browser')
+
+        # Desktop environment
+        elif any(phrase in user_input for phrase in ['desktop', 'gui', 'start gui', 'launch desktop']):
+            return self.launch_desktop_environment()
+
+        # Volume control
+        elif any(phrase in user_input for phrase in ['volume', 'audio', 'sound control']):
+            return self.launch_gui_app('pavucontrol', 'Volume Control')
+
+        return False
+
+    def launch_gui_app(self, app_name: str, friendly_name: str) -> bool:
+        """Launch a GUI application"""
+        try:
+            print(f"🖥️  Launching {friendly_name}...")
+
+            # Check if X is running
+            if not os.environ.get('DISPLAY'):
+                print("Starting X11 session...")
+                # Launch with X
+                subprocess.Popen(['startx', app_name, '--', ':1'],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+            else:
+                # X is already running, just launch the app
+                subprocess.Popen([app_name],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+
+            print(f"✅ {friendly_name} launched successfully!")
+            return True
+
+        except FileNotFoundError:
+            print(f"❌ {friendly_name} ({app_name}) not found. Is it installed?")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to launch {friendly_name}: {e}")
+            return True
+
+    def launch_desktop_environment(self) -> bool:
+        """Launch the full LXQt desktop environment"""
+        try:
+            print("🖥️  Starting LXQt Desktop Environment...")
+
+            # Launch full desktop session
+            subprocess.Popen(['startx'],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+
+            print("✅ Desktop environment started!")
+            print("You can now access GUI applications from the panel.")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to start desktop environment: {e}")
+            return True
+
     def show_help(self):
         """Display help information"""
         print("\n" + "="*60)
         print("VibeOS Natural Language Commands")
         print("="*60)
+        print("\nGUI Applications:")
+        print("  • file manager / files / browse files")
+        print("  • terminal / console")
+        print("  • text editor / editor / notepad")
+        print("  • browser / firefox")
+        print("  • desktop / gui / start gui")
+        print("  • volume / audio / sound control")
         print("\nAI Assistants:")
         print("  • switch to claude code")
         print("  • launch ai assistant")

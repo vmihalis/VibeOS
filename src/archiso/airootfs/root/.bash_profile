@@ -110,9 +110,10 @@ if [[ "$(tty)" == "/dev/tty1" ]]; then
 
     echo ""
     echo "GUI Support:"
-    echo "  • Firefox browser installed for authentication"
-    echo "  • Run 'vibeos-browser' to launch browser"
-    echo "  • Or say 'authenticate claude code' in vibesh"
+    echo "  • LXQt Desktop Environment with file manager, terminal, editor"
+    echo "  • Say 'desktop' or 'gui' in vibesh to launch full GUI"
+    echo "  • Say 'file manager', 'terminal', 'browser', etc. for specific apps"
+    echo "  • Run 'vibeos-auth' for Claude Code authentication with GUI"
     echo ""
     echo "========================================================"
     echo ""

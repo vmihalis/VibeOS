@@ -10,7 +10,6 @@ import json
 import asyncio
 import tempfile
 import logging
-import re
 from pathlib import Path
 from typing import Tuple, Dict, Any, Optional, List, AsyncGenerator
 import time
@@ -29,53 +28,23 @@ except ImportError as e:
 class ClaudeSDKParser:
     """Parse natural language using Claude Code SDK instead of subprocess calls"""
 
-    def __init__(self) -> None:
-        """Initialize Claude SDK Parser with shared utilities."""
-        try:
-            from .utils import VibeOSConfig, VibeOSDebug, VibeOSContextManager
-        except ImportError:
-            # Fall back to absolute import for standalone execution
-            from utils import VibeOSConfig, VibeOSDebug, VibeOSContextManager
-        
-        # Load configuration using shared utility
-        default_config = {
-            'debug': {'enabled': True},
-            'claude_code': {
-                'enabled': True,
-                'fallback_to_regex': False,
-                'command_timeout': 30,
-                'max_turns': 3,
-                'cache_commands': True,
-                'cache_ttl': 3600
-            }
-        }
-        self.config = VibeOSConfig.load_config(default_config=default_config)
-        
-        # Set up debug mode using shared utility
-        self.debug_mode = VibeOSDebug.is_debug_enabled(self.config)
-        
-        # Set up logging
-        VibeOSDebug.setup_logging(self.debug_mode)
+    def __init__(self):
+        self.config = self._load_config()
+        self.debug_mode = self._is_debug_enabled()
 
         if self.debug_mode:
-            logging.info("Initializing Claude SDK Parser...")
-            logging.debug(f"SDK Available: {SDK_AVAILABLE}")
-            logging.debug(f"Config loaded: {self.config.get('debug', {})}")
+            print("[DEBUG] Initializing Claude SDK Parser...")
+            print(f"[DEBUG] SDK Available: {SDK_AVAILABLE}")
 
         # SDK requires both the Python module AND the CLI to be available
         self.sdk_available = SDK_AVAILABLE and self._check_claude_code()
-        
-        # Use shared context manager
-        cache_enabled = self.config.get('claude_code', {}).get('cache_commands', True)
-        cache_ttl = self.config.get('claude_code', {}).get('cache_ttl', 3600)
-        self.context_manager = VibeOSContextManager(
-            cache_enabled=cache_enabled,
-            cache_ttl=cache_ttl
-        )
+        self.context_file = Path("/tmp/.vibeos_claude_context.json")
+        self.conversation_history = []
+        self.cache = {} if self.config.get('claude_code', {}).get('cache_commands', True) else None
 
         if self.debug_mode:
-            logging.debug(f"Claude SDK available: {self.sdk_available}")
-            logging.debug(f"Cache enabled: {cache_enabled}")
+            print(f"[DEBUG] Claude SDK available: {self.sdk_available}")
+            print(f"[DEBUG] Cache enabled: {self.cache is not None}")
 
     def _load_config(self) -> Dict[str, Any]:
         """Load configuration from file"""
@@ -92,7 +61,8 @@ class ClaudeSDKParser:
                 'enabled': True,
                 'fallback_to_regex': False,
                 'command_timeout': 30,
-                'max_turns': 3
+                'max_turns': 3,
+                'cache_commands': True
             }
         }
 
@@ -107,62 +77,6 @@ class ClaudeSDKParser:
 
         # Fall back to config file
         return self.config.get('debug', {}).get('enabled', True)
-
-    def _sanitize_input(self, text: str) -> Optional[str]:
-        """Sanitize user input to prevent injection attacks"""
-        if not text or not isinstance(text, str):
-            return None
-
-        # Remove or escape dangerous characters
-        text = text.strip()
-
-        # Basic length check
-        if len(text) > 10000:  # Reasonable limit
-            logging.warning("Input too long, truncating")
-            text = text[:10000]
-
-        # Check for common injection patterns
-        dangerous_patterns = [
-            r'[;&|`$()]',  # Shell metacharacters
-            r'\\x[0-9a-fA-F]{2}',  # Hex escape sequences
-            r'\\[0-7]{3}',  # Octal escape sequences
-        ]
-
-        for pattern in dangerous_patterns:
-            if re.search(pattern, text):
-                # Replace with safe equivalents
-                text = re.sub(r'[;&|`$()]', ' ', text)
-                text = re.sub(r'\\x[0-9a-fA-F]{2}', '', text)
-                text = re.sub(r'\\[0-7]{3}', '', text)
-                break
-
-        # Clean up multiple spaces
-        text = re.sub(r'\s+', ' ', text).strip()
-
-        return text if text else None
-
-    def _validate_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate and sanitize context dictionary"""
-        if not isinstance(context, dict):
-            return {}
-
-        validated = {}
-
-        # Validate working directory
-        cwd = context.get('cwd')
-        if cwd and isinstance(cwd, str):
-            try:
-                cwd_path = Path(cwd)
-                if cwd_path.exists() and cwd_path.is_dir():
-                    validated['cwd'] = str(cwd_path.absolute())
-                else:
-                    validated['cwd'] = os.getcwd()
-            except (OSError, PermissionError):
-                validated['cwd'] = os.getcwd()
-        else:
-            validated['cwd'] = os.getcwd()
-
-        return validated
 
     def _check_claude_code(self) -> bool:
         """Check if Claude Code CLI is available for the SDK to use"""
@@ -341,120 +255,72 @@ Working directory will be provided with each command."""
                 print(f"[DEBUG] Error running async query: {e}")
             return 'sdk_error', {'error': f'Failed to execute SDK query: {str(e)}'}
 
-    def parse(self, input_text: str, context: Dict[str, Any] = {}) -> Tuple[str, Dict[str, Any]]:
-        """
-        Main parse method that uses Claude Code SDK
+    def _sanitize_input(self, text: str) -> str:
+        """Simple input sanitization"""
+        if not text or not isinstance(text, str):
+            return ""
 
-        Returns:
-            Tuple of (intent, parameters)
-        """
-        # Input validation
+        # Basic cleanup
+        text = text.strip()
+        if len(text) > 5000:  # Reasonable limit
+            text = text[:5000]
+
+        return text
+
+    def parse(self, input_text: str, context: Dict[str, Any] = {}) -> Tuple[str, Dict[str, Any]]:
+        """Main parse method that uses Claude Code SDK"""
+        # Basic input validation
         if not input_text or not isinstance(input_text, str):
             return 'input_error', {'error': 'Input must be a non-empty string'}
 
-        # Sanitize input
-        sanitized_input = self._sanitize_input(input_text.strip())
+        sanitized_input = self._sanitize_input(input_text)
         if not sanitized_input:
-            return 'input_error', {'error': 'Input contains dangerous or invalid characters'}
+            return 'input_error', {'error': 'Empty input'}
 
-        # Validate and sanitize context
-        validated_context = self._validate_context(context)
+        # Simple context validation
+        if not isinstance(context, dict):
+            context = {}
+        if 'cwd' not in context:
+            context['cwd'] = os.getcwd()
 
-        # Check SDK availability and provide specific guidance
-        if not SDK_AVAILABLE:
-            return 'sdk_not_available', {
-                'error': 'Claude Code SDK Python module is not installed',
-                'input': sanitized_input,
-                'help': 'Install with: pip install claude-code-sdk anyio'
-            }
-
-        if not self._check_claude_code():
-            return 'cli_not_available', {
-                'error': 'Claude Code CLI is not installed or not authenticated',
-                'input': sanitized_input,
-                'help': """To use Claude Code SDK, you need the Claude Code CLI:
-
-1. Install Claude Code CLI:
-   npm install -g @anthropic-ai/claude-code
-
-2. Authenticate with your Claude.ai account:
-   claude-code auth
-
-3. This will open a browser for authentication
-
-Note: The SDK uses the CLI for communication with Claude"""
-            }
-
+        # Check SDK availability
         if not self.sdk_available:
             return 'sdk_not_available', {
-                'error': 'Claude Code SDK is not properly configured',
-                'input': sanitized_input,
-                'help': 'Check that both the SDK and CLI are installed'
+                'error': 'Claude Code is not installed or not authenticated',
+                'help': 'Run: vibeos-install-claude'
             }
 
-        return self.parse_with_sdk(sanitized_input, validated_context)
+        return self.parse_with_sdk(sanitized_input, context)
 
     def get_suggestions(self, partial_input: str) -> List[str]:
-        """Get command suggestions based on partial input and history"""
-        # Input validation
-        if not partial_input or not isinstance(partial_input, str):
+        """Get command suggestions based on partial input"""
+        if not partial_input:
             return []
 
-        # Sanitize input for safety
-        safe_input = self._sanitize_input(partial_input.strip())
-        if not safe_input:
-            return []
-
+        partial_lower = partial_input.lower()
         suggestions = []
-        partial_lower = safe_input.lower()
 
-        # Context-aware suggestions based on common VibeOS tasks
+        # Simple pattern matching
         if partial_lower.startswith('create'):
-            suggestions.extend([
-                'create a new Python project with testing framework',
-                'create a React app with authentication',
-                'create a REST API with database integration',
-                'create a machine learning environment'
-            ])
+            suggestions = ['create a new Python project', 'create a React app']
         elif partial_lower.startswith('install'):
-            suggestions.extend([
-                'install everything I need for web development',
-                'install machine learning libraries',
-                'install development tools and configure them',
-                'install and configure Docker'
-            ])
-        elif partial_lower.startswith('set'):
-            suggestions.extend([
-                'set up a complete development environment for Python',
-                'set up CI/CD pipeline for my project',
-                'set up database and connect it to my app',
-                'set up testing and code quality tools'
-            ])
+            suggestions = ['install development tools', 'install claude']
         elif partial_lower.startswith('fix'):
-            suggestions.extend([
-                'fix all the errors in my code',
-                'fix import and dependency issues',
-                'fix my Git repository configuration',
-                'fix performance issues in my application'
-            ])
-        elif partial_lower.startswith('deploy'):
-            suggestions.extend([
-                'deploy my application to production',
-                'deploy using Docker containers',
-                'deploy to cloud infrastructure',
-                'deploy with automatic scaling'
-            ])
+            suggestions = ['fix errors in my code', 'fix dependencies']
 
-        # Add suggestions from conversation history
-        for item in self.conversation_history[-5:]:
-            if partial_lower in item['input'].lower():
-                suggestions.append(item['input'])
-
-        return suggestions[:5]
+        return suggestions[:3]
 
     def clear_context(self) -> None:
-        """Clear conversation history and cache using shared context manager."""
-        self.context_manager.clear_context()
+        """Clear conversation history and cache."""
+        self.conversation_history.clear()
+        if self.cache:
+            self.cache.clear()
+
+        if self.context_file.exists():
+            try:
+                self.context_file.unlink()
+            except (OSError, PermissionError) as e:
+                print(f"Warning: Could not remove context file: {e}")
 
     @property
     def claude_available(self) -> bool:

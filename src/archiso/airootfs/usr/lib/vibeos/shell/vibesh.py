@@ -9,9 +9,6 @@ import sys
 import subprocess
 import readline
 import json
-import logging
-import shlex
-import re
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
@@ -106,72 +103,6 @@ class VibeShell:
         # Initialize readline for better input handling
         self._setup_readline()
 
-    def _sanitize_user_input(self, user_input: str) -> Optional[str]:
-        """Sanitize user input to prevent injection attacks"""
-        if not user_input or not isinstance(user_input, str):
-            return None
-
-        # Basic sanitization
-        sanitized = user_input.strip()
-
-        # Length check (reasonable limit for natural language commands)
-        if len(sanitized) > 5000:
-            logging.warning("User input too long, truncating")
-            sanitized = sanitized[:5000]
-
-        # Remove null bytes and other dangerous characters
-        sanitized = sanitized.replace('\x00', '').replace('\r', '')
-
-        # Check for obvious injection attempts
-        dangerous_patterns = [
-            r';\s*rm\s+-rf',  # Dangerous rm commands
-            r';\s*sudo\s+rm',  # Sudo rm commands
-            r'>\s*/dev/sd[a-z]',  # Writing to disk devices
-            r'\$\(.*\)',  # Command substitution
-            r'`.*`',  # Backtick command substitution
-        ]
-
-        for pattern in dangerous_patterns:
-            if re.search(pattern, sanitized, re.IGNORECASE):
-                logging.warning(f"Dangerous pattern detected in input: {pattern}")
-                return None
-
-        return sanitized if sanitized else None
-
-    def _safe_subprocess_run(self, command: List[str], timeout: int = 30, **kwargs) -> subprocess.CompletedProcess:
-        """Safely execute subprocess with timeout and error handling"""
-        try:
-            # Validate command
-            if not command or not all(isinstance(arg, str) for arg in command):
-                raise ValueError("Invalid command arguments")
-
-            # Set safe defaults
-            safe_kwargs = {
-                'timeout': timeout,
-                'check': False,
-                'capture_output': kwargs.get('capture_output', True),
-                'text': kwargs.get('text', True)
-            }
-
-            if self.debug_mode:
-                logging.debug(f"Executing command: {command}")
-
-            result = subprocess.run(command, **safe_kwargs)
-
-            if self.debug_mode:
-                logging.debug(f"Command completed with exit code: {result.returncode}")
-
-            return result
-
-        except subprocess.TimeoutExpired:
-            logging.error(f"Command timed out after {timeout} seconds: {command}")
-            raise
-        except (OSError, subprocess.SubprocessError) as e:
-            logging.error(f"Process error executing {command}: {e}")
-            raise
-        except Exception as e:
-            logging.error(f"Unexpected error executing {command}: {e}")
-            raise
 
     def _setup_readline(self):
         """Configure readline for command history and tab completion"""
@@ -247,35 +178,36 @@ class VibeShell:
             if result.returncode == 0:
                 branch = result.stdout.strip()
                 git_info = f" ({branch})"
-        except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
-            # Git is not available or not in a git repository - this is normal
-            if self.debug_mode:
-                logging.debug(f"Git branch detection failed: {e}")
+        except:
             pass
         
         return f"\n[{cwd}{git_info}]\n→ "
     
     def process_input(self, user_input: str) -> bool:
         """Process user input and execute appropriate commands"""
-        # Input validation and sanitization
-        sanitized_input = self._sanitize_user_input(user_input)
-        if not sanitized_input:
-            print("⚠️  Invalid or potentially dangerous input detected. Please try again.")
+        # Basic validation
+        if not user_input or not isinstance(user_input, str):
             return True
 
-        # Handle special commands (case-insensitive)
-        lower_input = sanitized_input.lower()
+        user_input = user_input.strip()
+        if not user_input:
+            return True
 
-        if lower_input in ['exit', 'quit', 'bye']:
+        # Handle special commands
+        if user_input.lower() in ['exit', 'quit', 'bye']:
             print("Goodbye! Stay in the flow.")
             return False
 
-        if lower_input in ['help', '?']:
+        if user_input.lower() in ['help', '?']:
             self.show_help()
             return True
 
+        # Handle GUI application commands
+        if self.handle_gui_commands(user_input):
+            return True
+
         # Handle AI assistant switching
-        if any(phrase in lower_input for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
+        if any(phrase in user_input.lower() for phrase in ['claude code', 'ai assistant', 'switch to claude', 'launch claude']):
             self.launch_ai_assistant()
             return True
 
@@ -301,8 +233,8 @@ class VibeShell:
             'cwd': os.getcwd()
         }
 
-        # Claude Code processes everything (using sanitized input)
-        intent, params = self.parser.parse(sanitized_input, context_data)
+        # Claude Code processes everything
+        intent, params = self.parser.parse(user_input, context_data)
 
         # Handle SDK responses
         if intent == "sdk_response":
@@ -328,14 +260,13 @@ class VibeShell:
 
                 print(f"💭 Executing: {command}")
 
-                # Execute command with proper safety measures
-                # Note: This is still using shell=True for compatibility but with sanitized input
+                # Execute command with timeout
                 result = subprocess.run(
                     command,
                     shell=True,
                     capture_output=True,
                     text=True,
-                    timeout=60,  # 60 second timeout
+                    timeout=60,  # Keep the timeout improvement
                     cwd=os.getcwd()
                 )
 
@@ -348,9 +279,6 @@ class VibeShell:
 
             except subprocess.TimeoutExpired:
                 print("⚠️  Command timed out after 60 seconds")
-                return True
-            except (OSError, subprocess.SubprocessError) as e:
-                print(f"⚠️  Process error: {e}")
                 return True
             except Exception as e:
                 print(f"⚠️  Error executing command: {e}")
@@ -394,12 +322,95 @@ class VibeShell:
                 print(f"[DEBUG] Full params: {params}")
 
         return True
-    
+
+    def handle_gui_commands(self, user_input: str) -> bool:
+        """Handle GUI application launching commands"""
+        user_input = user_input.lower().strip()
+
+        # File manager commands
+        if any(phrase in user_input for phrase in ['file manager', 'files', 'browse files', 'open files']):
+            return self.launch_gui_app('pcmanfm-qt', 'File Manager')
+
+        # Terminal commands
+        elif any(phrase in user_input for phrase in ['terminal', 'console', 'command line']):
+            return self.launch_gui_app('qterminal', 'Terminal')
+
+        # Text editor commands
+        elif any(phrase in user_input for phrase in ['text editor', 'editor', 'edit text', 'notepad']):
+            return self.launch_gui_app('featherpad', 'Text Editor')
+
+        # Browser commands
+        elif any(phrase in user_input for phrase in ['browser', 'firefox', 'web browser']):
+            return self.launch_gui_app('firefox', 'Browser')
+
+        # Desktop environment
+        elif any(phrase in user_input for phrase in ['desktop', 'gui', 'start gui', 'launch desktop']):
+            return self.launch_desktop_environment()
+
+        # Volume control
+        elif any(phrase in user_input for phrase in ['volume', 'audio', 'sound control']):
+            return self.launch_gui_app('pavucontrol', 'Volume Control')
+
+        return False
+
+    def launch_gui_app(self, app_name: str, friendly_name: str) -> bool:
+        """Launch a GUI application"""
+        try:
+            print(f"🖥️  Launching {friendly_name}...")
+
+            # Check if X is running
+            if not os.environ.get('DISPLAY'):
+                print("Starting X11 session...")
+                # Launch with X
+                subprocess.Popen(['startx', app_name, '--', ':1'],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+            else:
+                # X is already running, just launch the app
+                subprocess.Popen([app_name],
+                               stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL)
+
+            print(f"✅ {friendly_name} launched successfully!")
+            return True
+
+        except FileNotFoundError:
+            print(f"❌ {friendly_name} ({app_name}) not found. Is it installed?")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to launch {friendly_name}: {e}")
+            return True
+
+    def launch_desktop_environment(self) -> bool:
+        """Launch the full LXQt desktop environment"""
+        try:
+            print("🖥️  Starting LXQt Desktop Environment...")
+
+            # Launch full desktop session
+            subprocess.Popen(['startx'],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+
+            print("✅ Desktop environment started!")
+            print("You can now access GUI applications from the panel.")
+            return True
+
+        except Exception as e:
+            print(f"❌ Failed to start desktop environment: {e}")
+            return True
+
     def show_help(self):
         """Display help information"""
         print("\n" + "="*60)
         print("VibeOS Natural Language Commands")
         print("="*60)
+        print("\nGUI Applications:")
+        print("  • file manager / files / browse files")
+        print("  • terminal / console")
+        print("  • text editor / editor / notepad")
+        print("  • browser / firefox")
+        print("  • desktop / gui / start gui")
+        print("  • volume / audio / sound control")
         print("\nAI Assistants:")
         print("  • switch to claude code")
         print("  • launch ai assistant")

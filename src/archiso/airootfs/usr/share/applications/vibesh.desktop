@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VibeOS Shell
+Comment=Natural Language Shell for VibeOS
+Exec=qterminal -e /usr/local/bin/vibesh
+Icon=terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+Keywords=shell;ai;natural;language;vibeos;claude;

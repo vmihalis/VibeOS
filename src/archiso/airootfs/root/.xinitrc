@@ -15,10 +15,15 @@ if which dbus-launch >/dev/null && test -z "$DBUS_SESSION_BUS_ADDRESS"; then
     eval "$(dbus-launch --sh-syntax --exit-with-session)"
 fi
 
-# If a specific app was requested, run it
+# Set LXQt environment variables
+export XDG_CURRENT_DESKTOP=LXQt
+export QT_QPA_PLATFORMTHEME=lxqt
+
+# If a specific app was requested, run it with openbox
 if [ -n "$1" ]; then
+    openbox &
     exec "$@"
 else
-    # Default: start openbox with xterm
-    exec openbox-session
+    # Default: start LXQt desktop environment
+    exec startlxqt
 fi
